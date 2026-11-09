@@ -53,6 +53,8 @@ h3 { font-size: 17px; color: var(--gold3); letter-spacing: .3px; }
 .seg button.on { background: linear-gradient(180deg, var(--gold3), var(--gold2)); color: #3a2400; box-shadow: 0 2px 0 var(--goldEdge); }
 .rows { display: grid; gap: 12px; }
 .dot { width: 26px; height: 26px; border-radius: 50%; flex: none; background: radial-gradient(circle at 34% 28%, #fff 0 9%, var(--c) 10% 62%, color-mix(in srgb, var(--c) 55%, #000) 100%); box-shadow: 0 3px 0 rgba(0, 0, 0, .35), 0 6px 10px rgba(0, 0, 0, .3); }
+.sel { max-width: 62%; background: rgba(0, 0, 0, .35); color: var(--ink); border: 1px solid var(--edge); border-radius: 12px; padding: 10px 12px; font: inherit; font-weight: 700; min-height: 44px; text-overflow: ellipsis; }
+.voice-pickers { display: grid; gap: 8px; }
 .inp { flex: 1; background: transparent; border: 0; color: var(--ink); font: inherit; font-weight: 800; font-size: 17px; padding: 10px 0; min-width: 0; }
 .inp:focus-visible { outline: none; }
 .linkish { background: transparent; color: var(--muted); font-size: 13px; padding: 6px 4px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

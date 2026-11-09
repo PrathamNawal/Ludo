@@ -81,33 +81,49 @@ export function buzz(pattern) {
 }
 
 // ---------- spoken commentary (the phone's own text-to-speech: free, nothing to download) ----------
-// Hindi script is read by a Hindi voice; Hinglish and English (Latin script) by an Indian-English voice,
-// which reads Romanised Hindi far better than a Hindi voice does.
+// Quality comes from three things: (1) Hindi lines are spoken in Devanagari by a Hindi voice (see
+// i18n.sayParts), never as Romanised text through an English voice; (2) the best installed voice is
+// chosen by quality signals (network / natural / neural) instead of list order, or the player's own
+// pick from Settings; (3) delivery changes with the moment (excited for a six, softer for bad luck).
+import { chooseVoice, rankVoices, MOODS } from './voice-rank.js';
+
 const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
 let voices = [];
-const loadVoices = () => { try { voices = synth ? synth.getVoices() : []; } catch { voices = []; } };
+const listeners = new Set();
+const loadVoices = () => { try { voices = synth ? synth.getVoices() : []; } catch { voices = []; } listeners.forEach(fn => fn()); };
 if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices); } catch { /* old browsers */ } }
-const VOICE_LANG = { hi: 'hi-IN', hg: 'en-IN', en: 'en-IN' };
-const norm = l => String(l || '').replace('_', '-');
-function pickVoice(want) {
-  const base = want.split('-')[0];
-  return voices.find(v => norm(v.lang) === want) || voices.find(v => norm(v.lang).startsWith(base + '-')) || voices.find(v => norm(v.lang).startsWith(base)) || null;
-}
+export const onVoicesChanged = fn => { listeners.add(fn); return () => listeners.delete(fn); };
 export const voiceSupported = () => !!synth && typeof SpeechSynthesisUtterance !== 'undefined';
+const DEVANAGARI = /[\u0900-\u097F]/;
+export const langOf = text => (DEVANAGARI.test(text) ? 'hi-IN' : 'en-IN');
+
+/** Voices on this device for a language, best first: {hi: [...], en: [...]}. */
+export function listVoices() {
+  return { hi: rankVoices(voices, 'hi-IN'), en: rankVoices(voices, 'en-IN') };
+}
+
+function pickFor(want, allowNetwork) {
+  const st = settings();
+  const pref = want.startsWith('hi') ? st.voiceHi : st.voiceEn;
+  return chooseVoice(voices, want, pref, { allowNetwork });
+}
+
 /** Speak one commentary line. Latest line wins (cancels the previous) so speech never lags the game. */
-export function speak(text) {
+export function speak(text, mood = 'calm') {
   const st = settings();
   if (!voiceSupported() || !st.sound || st.voice === false || !text) return false;
-  try {
-    synth.cancel();
+  const want = langOf(text);
+  const m = MOODS[mood] || MOODS.calm;
+  const say = (allowNetwork, retried) => {
     const u = new SpeechSynthesisUtterance(text);
-    const want = VOICE_LANG[getLang()] || 'en-IN';
     u.lang = want;
-    const v = pickVoice(want);
+    const v = pickFor(want, allowNetwork);
     if (v) u.voice = v;
-    u.rate = 1.03; u.pitch = 1; u.volume = 1;
+    u.rate = m.rate; u.pitch = m.pitch; u.volume = 1;
+    // A network voice fails when offline: retry once with the best on-device voice.
+    u.onerror = e => { if (!retried && allowNetwork && e && e.error && e.error !== 'interrupted' && e.error !== 'canceled') { try { synth.cancel(); say(false, true); } catch { /* ignore */ } } };
     synth.speak(u);
-    return true;
-  } catch { return false; }
+  };
+  try { synth.cancel(); say(true, false); return true; } catch { return false; }
 }
 export function stopSpeaking() { try { if (synth) synth.cancel(); } catch { /* ignore */ } }

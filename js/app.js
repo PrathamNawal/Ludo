@@ -4,9 +4,9 @@ import { newSeed, commitOf, rollAt, verifyRolls, faceStats } from './dice.js';
 import { chooseMove, PERSONAS, PERSONA_KEYS } from './bots.js';
 import { generatePuzzle, solve, dayNumber, playRoll, isGoalMet, GOAL_KEY, TIERS } from './puzzle.js';
 import { encodeRoom, decodeRoom, roomState, nextRoll, verifyRoom, newRoomId } from './family.js';
-import { t, say, setLang, getLang, LANGS } from './i18n.js';
+import { t, tIn, say, setLang, getLang, LANGS } from './i18n.js';
 import { db, settings, update, getSeat, setSeat } from './store.js';
-import { sfx, unlock, buzz, speak, stopSpeaking, voiceSupported } from './audio.js';
+import { sfx, unlock, buzz, speak, stopSpeaking, voiceSupported, listVoices, onVoicesChanged } from './audio.js';
 import { $, h, sleep, toast } from './ui.js';
 import { GameView, setBoard3D } from './view.js';
 import './version.js';
@@ -130,6 +130,30 @@ function homeScreen() {
 }
 
 // ---------- settings ----------
+// Lets the player choose the best voice their phone has (the default pick is automatic).
+function voicePickers() {
+  const box = h('div', { class: 'voice-pickers' });
+  const build = () => {
+    const all = listVoices();
+    const rows = [];
+    for (const [key, label, store, sample] of [['hi', 'voice.hindi', 'voiceHi', tIn('hi', 'voice.sample')], ['en', 'voice.english', 'voiceEn', tIn('en', 'voice.sample')]]) {
+      const list = all[key];
+      if (list.length < 2) continue; // nothing to choose between
+      const cur = settings()[store] || '';
+      const sel = h('select', { class: 'sel', 'aria-label': t(label), onchange: e => { const val = e.target.value; update(d => { d.settings[store] = val; }); speak(sample, 'excited'); } },
+        h('option', { value: '', text: t('voice.auto') }),
+        ...list.map(v => h('option', { value: v.name, selected: v.name === cur, text: `${v.name.replace(/^(Google|Microsoft)\s+/, '')}${v.localService === false ? ' ☁' : ''}` })));
+      rows.push(h('label', { class: 'row' }, h('span', { text: t(label) }), sel));
+    }
+    box.replaceChildren(...rows);
+  };
+  build();
+  const off = onVoicesChanged(build); // voices load a moment after the page opens
+  const watcher = new MutationObserver(() => { if (!box.isConnected) { off(); watcher.disconnect(); } });
+  watcher.observe(document.body, { childList: true, subtree: true });
+  return box;
+}
+
 function openSettings() {
   sfx.click();
   const st = settings();
@@ -150,8 +174,9 @@ function openSettings() {
       if (!v) { stopSpeaking(); return; }
       unlock();
       if (!voiceSupported()) { toast(t('voice.none')); return; }
-      speak(t('voice.sample')); // so you can hear straight away whether this phone has a voice
+      speak(getLang() === 'en' ? t('voice.sample') : tIn('hi', 'voice.sample'), 'excited'); // so you can hear straight away whether this phone has a voice
     }),
+    voicePickers(),
     onoff('haptics', t('settings.haptics'), v => { if (v) buzz(40); }),
     onoff('reduceMotion', t('settings.motion'), v => { document.documentElement.dataset.motion = v ? 'reduce' : ''; }),
     installEvt ? h('button', { class: 'btn', onclick: async () => { installEvt.prompt(); installEvt = null; closeModal(); } }, '📲 ' + t('settings.install')) : null,
@@ -189,14 +214,14 @@ function openSetup(cfg) {
 
 function namesFor(kinds) {
   const humans = kinds.filter(k => k === 'human').length;
-  let hn = 0; const names = {}, avatars = {}, kindMap = {};
+  let hn = 0; const names = {}, avatars = {}, kindMap = {}, speech = {};
   kinds.forEach((k, c) => {
     if (k === 'off') return;
     kindMap[c] = k;
-    if (k === 'human') { hn++; names[c] = humans === 1 ? t('p.you') : t('n.player', { n: hn }); }
-    else { names[c] = t('n.' + k); avatars[c] = PERSONAS[k].emoji; }
+    if (k === 'human') { hn++; names[c] = humans === 1 ? t('p.you') : t('n.player', { n: hn }); speech[c] = humans === 1 ? tIn('hi', 'p.you') : tIn('hi', 'n.player', { n: hn }); }
+    else { names[c] = t('n.' + k); avatars[c] = PERSONAS[k].emoji; speech[c] = tIn('hi', 'n.' + k); }
   });
-  return { names, avatars, kindMap };
+  return { names, avatars, kindMap, speech };
 }
 
 async function startLocal(setup) {
@@ -218,16 +243,16 @@ function runLocal(match) {
     const { colors, tokens } = match.cfg;
     const state = replay(match.cfg, match.log);
     const kindsArr = [0, 1, 2, 3].map(c => match.kinds[c] || 'off');
-    const { names, avatars } = namesFor(kindsArr);
+    const { names, avatars, speech } = namesFor(kindsArr);
     const lockBtn = h('button', { class: 'chip-lock', onclick: () => openModal(h('div', { class: 'settings' }, h('h2', { text: '🔒 ' + t('game.locked') }), h('p', { text: t('game.lockedTip') }), h('code', { class: 'mono', text: match.commit }), h('button', { class: 'btn primary', onclick: closeModal }, t('ok')))) }, '🔒 ' + match.commit.slice(0, 6));
     const soundBtn = h('button', { class: 'icon-btn ghost', 'aria-label': t('settings.sound'), onclick: openSettings }, '⚙');
-    const v = view = new GameView({ colors, tokens, names, avatars, gfx: gfxMode() });
+    const v = view = new GameView({ colors, tokens, names, avatars, gfx: gfxMode(), speechNames: speech });
     if (v.is3d) { const firstHuman = colors.find(c => match.kinds[c] === 'human'); v.board.setViewColor(firstHuman === undefined ? colors[0] : firstHuman, true); v.board.setInsets(214, 118); }
     const my = ctl = { dead: false };
     v.place(state, 0);
     v.dockHint.textContent = '';
     (async () => {
-      if (match.log.length) v.setBubble(''); else v.commentate(say('start'));
+      if (match.log.length) v.setBubble(''); else v.say('start', {}, {}, 'calm');
       try {
         while (state.winner === null && !my.dead) {
           const color = current(state), kind = match.kinds[color];
@@ -493,7 +518,7 @@ function renderFamily(room, me, { push = true } = {}) {
 
     (async () => {
       try {
-        if (state.winner !== null) { v.setTurn(state.winner); v.commentate(say('win', { name: names[state.winner] })); return familyResult(room, me, state, names); }
+        if (state.winner !== null) { v.setTurn(state.winner); v.say('win', { name: names[state.winner] }, {}, 'excited'); return familyResult(room, me, state, names); }
         v.setTurn(state.colors[curSeat]);
         if (curSeat !== mySeat) {
           v.setBubble(t('fam.waiting', { name: curName })); v.dockHint.textContent = t('fam.waiting', { name: curName });

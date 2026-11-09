@@ -354,19 +354,29 @@ console.log('11. Repository is publishable as-is');
   const listed = [...sw.matchAll(/'([^']+\.(?:js|css|html|png|svg|webmanifest))'/g)].map(m => m[1]);
   const missing = listed.filter(f => !existsSync(new URL('../' + f, import.meta.url)));
   check('every file the service worker precaches exists (a missing one would break install)', missing.length === 0, missing.join(','));
+  // and the reverse: every shipped file is precached, otherwise the app breaks offline when a new module is added
+  const { readdirSync } = await import('node:fs');
+  const shipped = ['index.html', 'sw.js', 'manifest.webmanifest', ...['css', 'js', 'vendor', 'icons'].flatMap(d => readdirSync(new URL('../' + d + '/', import.meta.url)).filter(f => !/^LICENSE/.test(f) && !/maskable\.svg$/.test(f)).map(f => d + '/' + f))];
+  const unlisted = shipped.filter(f => f !== 'sw.js' && !listed.includes(f));
+  check('every shipped file is in the offline precache list (no module forgotten)', unlisted.length === 0, unlisted.join(','));
 }
 
 // ---------------------------------------------------------------- 12. spoken commentary reaches the device's speech engine
 console.log('12. Spoken commentary');
 {
-  // Headless Chromium has no real voices, so stub the engine and verify WHAT it is asked to say and in which language.
-  const stub = `window.__spoken=[];const fake={speak(u){window.__spoken.push({text:u.text,lang:u.lang})},cancel(){},getVoices(){return[]},addEventListener(){}};Object.defineProperty(window,'speechSynthesis',{value:fake,configurable:true});window.SpeechSynthesisUtterance=class{constructor(t){this.text=t}};`;
-  const run = async (settings, ms, until) => {
+  // Headless Chromium has no real voices, so stub the engine and verify WHAT is said, in which language and with which voice.
+  const VOICES = `[{name:'Hindi Local',lang:'hi-IN',localService:true,voiceURI:'hi-local'},{name:'Hindi Network',lang:'hi-IN',localService:false,voiceURI:'hi-in-x-hia-network'},{name:'Indian English Local',lang:'en-IN',localService:true,voiceURI:'en-local'},{name:'Indian English Network',lang:'en-IN',localService:false,voiceURI:'en-in-x-ena-network'}]`;
+  const stub = `window.__spoken=[];const V=${VOICES};const fake={speak(u){window.__spoken.push({text:u.text,lang:u.lang,voice:u.voice&&u.voice.name,rate:u.rate,pitch:u.pitch})},cancel(){},getVoices(){return V},addEventListener(){}};Object.defineProperty(window,'speechSynthesis',{value:fake,configurable:true});window.SpeechSynthesisUtterance=class{constructor(t){this.text=t}};`;
+  const mk = async settings => {
     const ctx = await browser.newContext(mobile);
     await ctx.addInitScript(stub);
     await ctx.addInitScript(`if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:${JSON.stringify({ sound: true, voice: true, haptics: false, reduceMotion: true, gfx: 'lite', ...settings })}}))`);
     const page = await newPage(ctx);
     await page.goto(base); await page.waitForSelector('#play-now');
+    return { ctx, page };
+  };
+  const run = async (settings, ms, until) => {
+    const { ctx, page } = await mk(settings);
     await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 4 }));
     await page.waitForSelector('.dice.ready');
     await drive(page, async () => until ? (await page.evaluate(() => window.__spoken.length)) >= until : false, { maxMs: ms });
@@ -374,16 +384,47 @@ console.log('12. Spoken commentary');
     await ctx.close();
     return spoken;
   };
-  const en = await run({ lang: 'hg' }, 60000, 3);
-  check('commentary is spoken during play (Hinglish)', en.length >= 3 && en.every(x => x.text && x.text.length > 3), JSON.stringify(en.slice(0, 3)));
-  check('Hinglish is read by an Indian-English voice (en-IN), which reads Romanised Hindi best', en.every(x => x.lang === 'en-IN'));
-  check('the opening line is spoken', /Adda|toss|Toss|Welcome/i.test(en[0].text), en[0].text);
+  const dev = /[ऀ-ॿ]/;
+  const hg = await run({ lang: 'hg' }, 60000, 3);
+  check('commentary is spoken during play', hg.length >= 3 && hg.every(x => x.text && x.text.length > 3), JSON.stringify(hg.slice(0, 3)));
+  check('Hinglish is spoken as Hindi (Devanagari line, hi-IN voice), not Romanised text through an English voice', hg.every(x => x.lang === 'hi-IN' && dev.test(x.text)), JSON.stringify(hg.slice(0, 3)));
+  check('the best voice is chosen automatically (network Hindi voice, not the first one listed)', hg.every(x => x.voice === 'Hindi Network'), JSON.stringify([...new Set(hg.map(x => x.voice))]));
+  check('delivery is set per moment (rate and pitch present)', hg.every(x => typeof x.rate === 'number' && typeof x.pitch === 'number'));
+  const en = await run({ lang: 'en' }, 60000, 3);
+  check('English is spoken in English by an Indian-English voice', en.length >= 3 && en.every(x => x.lang === 'en-IN' && !dev.test(x.text) && x.voice === 'Indian English Network'), JSON.stringify(en.slice(0, 3)));
   const hi = await run({ lang: 'hi' }, 60000, 2);
-  check('Hindi script is read by a Hindi voice (hi-IN)', hi.length >= 2 && hi.every(x => x.lang === 'hi-IN' && /[ऀ-ॿ]/.test(x.text)), JSON.stringify(hi.slice(0, 2)));
+  check('Hindi script is read by a Hindi voice', hi.length >= 2 && hi.every(x => x.lang === 'hi-IN' && dev.test(x.text)));
   const off = await run({ lang: 'hg', voice: false }, 8000, 0);
   check('voice commentary can be switched off', off.length === 0, String(off.length));
   const muted = await run({ lang: 'hg', sound: false }, 8000, 0);
   check('turning sound off also silences the voice', muted.length === 0, String(muted.length));
+
+  // family members with custom (Latin) names: Hindi voice cannot say them properly, so fall back to the shown line + English voice
+  {
+    const { ctx, page } = await mk({ lang: 'hg' });
+    await page.click('.c-family'); await page.waitForSelector('.name-row'); await page.click('.btn.primary.big');
+    await page.waitForSelector('.dice.ready');
+    await drive(page, async () => (await page.evaluate(() => window.__spoken.length)) >= 1, { maxMs: 60000 });
+    const sp = await page.evaluate(() => window.__spoken);
+    check('family board with custom names falls back to the English voice reading the shown line', sp.length >= 1 && sp.every(x => x.lang === 'en-IN' && !dev.test(x.text)), JSON.stringify(sp.slice(0, 2)));
+    await ctx.close();
+  }
+
+  // Settings: the player can pick a voice; it is used, remembered, and previewed
+  {
+    const { ctx, page } = await mk({ lang: 'hg' });
+    await page.click('.home-top .icon-btn'); await page.waitForSelector('.settings');
+    await page.waitForSelector('.voice-pickers select');
+    const opts = await page.$$eval('.voice-pickers label:first-child select option', os => os.map(o => o.textContent));
+    check('Settings lists this phone\'s Hindi voices with an Auto option', opts.length === 3 && /Auto/.test(opts[0]) && opts.some(o => /Network/.test(o)), JSON.stringify(opts));
+    await page.selectOption('.voice-pickers label:first-child select', 'Hindi Local');
+    await page.waitForTimeout(200);
+    const last = await page.evaluate(() => window.__spoken.at(-1));
+    check('choosing a voice previews it immediately in that voice', last && last.voice === 'Hindi Local' && dev.test(last.text), JSON.stringify(last));
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ludoadda.v1')).settings.voiceHi);
+    check('the chosen voice is remembered', saved === 'Hindi Local', saved);
+    await ctx.close();
+  }
 }
 
 await browser.close(); srv.close();

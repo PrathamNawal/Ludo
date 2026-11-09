@@ -3,7 +3,7 @@ const KEY = 'ludoadda.v1';
 const VERSION = 1;
 const defaults = () => ({
   version: VERSION,
-  settings: { lang: 'hg', sound: true, voice: true, haptics: true, reduceMotion: false, gfx: 'auto' },
+  settings: { lang: 'hg', sound: true, voice: true, voiceHi: '', voiceEn: '', haptics: true, reduceMotion: false, gfx: 'auto' },
   stats: { games: 0, wins: 0, sixes: 0 },
   puzzle: { solved: {}, streak: 0, lastSolvedDay: 0, hints: {} },
   match: null,

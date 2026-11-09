@@ -8,7 +8,7 @@ import { t, say, setLang, getLang, LANGS } from './i18n.js';
 import { db, settings, update, getSeat, setSeat } from './store.js';
 import { sfx, unlock, buzz } from './audio.js';
 import { $, h, sleep, toast } from './ui.js';
-import { GameView } from './view.js';
+import { GameView, setBoard3D } from './view.js';
 import { Board, PALETTE } from './board.js';
 
 const app = $('#app');
@@ -16,9 +16,32 @@ let ctl = null;           // active controller, cancelled when leaving a screen
 let view = null;
 let screenName = 'home';
 let installEvt = null;
+let heroBoard = null;
+let gl = null;           // the lazily loaded 3D module, or null when unavailable / Lite
+
+// ---------- graphics: 3D by default where it will run well, Lite 2D otherwise ----------
+function wants3d() {
+  const g = settings().gfx || 'auto';
+  if (g === 'lite') return false;
+  if (g === '3d') return true;
+  const weak = (navigator.deviceMemory && navigator.deviceMemory <= 1) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+  return !weak;
+}
+async function initGfx() {
+  if (!wants3d()) return false;
+  if (gl) return true;
+  try {
+    const m = await Promise.race([import('./board3d.js'), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))]);
+    if (!m.webglSupported()) return false;
+    gl = m; setBoard3D(m.Board3D);
+    return true;
+  } catch (e) { console.warn('3D disabled:', e.message); return false; }
+}
+const gfxMode = () => (gl && wants3d() ? '3d' : 'lite');
 
 // ---------- navigation ----------
 function stopActive() {
+  if (heroBoard) { heroBoard.dispose(); heroBoard = null; }
   if (ctl) ctl.dead = true;
   if (view) view.destroy();
   ctl = null; view = null;
@@ -74,12 +97,19 @@ function homeScreen() {
   const resume = d.match;
   const card = (cls, icon, title, sub, fn) => h('button', { class: `card ${cls}`, onclick: () => { unlock(); sfx.click(); fn(); } },
     h('span', { class: 'card-ic', 'aria-hidden': 'true', text: icon }), h('span', { class: 'card-t', text: title }), h('span', { class: 'card-s', text: sub }));
-  return h('main', { class: 'home' },
+  const use3d = gfxMode() === '3d';
+  const hero = use3d ? h('div', { class: 'hero3d', 'aria-hidden': 'true' }) : null;
+  if (hero) setTimeout(() => {
+    if (screenName !== 'home' || !hero.isConnected || heroBoard) return;
+    try { heroBoard = new gl.Board3D(hero, { colors: [0, 1, 2, 3], tokens: 4, hero: true }); hero.classList.add('live'); } catch (e) { console.warn('hero off', e); }
+  }, 30);
+  return h('main', { class: `home ${use3d ? 'has-hero' : ''}` },
     h('div', { class: 'home-top' },
       h('button', { class: 'icon-btn ghost', 'aria-label': t('home.settings'), onclick: openSettings }, '⚙'),
     ),
+    hero,
     h('div', { class: 'logo' },
-      h('div', { class: 'logo-dice', 'aria-hidden': 'true' }, ...[1, 3, 4, 6, 7, 9].map(p => h('i', { style: `grid-area:p${p}` }))),
+      use3d ? null : h('div', { class: 'logo-dice', 'aria-hidden': 'true' }, ...[1, 3, 4, 6, 7, 9].map(p => h('i', { style: `grid-area:p${p}` }))),
       h('h1', { text: t('app.name') }),
       h('p', { class: 'tag', text: t('app.tag') })),
     h('button', { class: 'play-btn', id: 'play-now', onclick: () => { unlock(); sfx.click(); startLocal(presets.now()); } },
@@ -105,6 +135,12 @@ function openSettings() {
   const body = h('div', { class: 'settings' },
     h('h2', { text: t('home.settings') }),
     seg(t('settings.lang'), Object.entries(LANGS), getLang(), l => { update(d => { d.settings.lang = l; }); setLang(l); closeModal(); if (screenName === 'home') show('home', homeScreen, { push: false }); }),
+    seg(t('settings.gfx'), [['3d', t('gfx.3d')], ['lite', t('gfx.lite')]], gfxMode() === '3d' ? '3d' : 'lite', async g => {
+      update(d => { d.settings.gfx = g; });
+      if (g === '3d') await initGfx();
+      closeModal(); if (screenName === 'home') show('home', homeScreen, { push: false });
+    }),
+    h('p', { class: 'foot small', text: t('settings.gfxTip') }),
     onoff('sound', t('settings.sound'), v => { if (v) { unlock(); sfx.good(); } }),
     onoff('haptics', t('settings.haptics'), v => { if (v) buzz(40); }),
     onoff('reduceMotion', t('settings.motion'), v => { document.documentElement.dataset.motion = v ? 'reduce' : ''; }),
@@ -174,7 +210,8 @@ function runLocal(match) {
     const { names, avatars } = namesFor(kindsArr);
     const lockBtn = h('button', { class: 'chip-lock', onclick: () => openModal(h('div', { class: 'settings' }, h('h2', { text: '🔒 ' + t('game.locked') }), h('p', { text: t('game.lockedTip') }), h('code', { class: 'mono', text: match.commit }), h('button', { class: 'btn primary', onclick: closeModal }, t('ok')))) }, '🔒 ' + match.commit.slice(0, 6));
     const soundBtn = h('button', { class: 'icon-btn ghost', 'aria-label': t('settings.sound'), onclick: openSettings }, '⚙');
-    const v = view = new GameView({ colors, tokens, names, avatars });
+    const v = view = new GameView({ colors, tokens, names, avatars, gfx: gfxMode() });
+    if (v.is3d) { const firstHuman = colors.find(c => match.kinds[c] === 'human'); v.board.setViewColor(firstHuman === undefined ? colors[0] : firstHuman, true); v.board.setInsets(214, 118); }
     const my = ctl = { dead: false };
     v.place(state, 0);
     v.dockHint.textContent = '';
@@ -184,7 +221,7 @@ function runLocal(match) {
         while (state.winner === null && !my.dead) {
           const color = current(state), kind = match.kinds[color];
           v.setTurn(color);
-          if (kind === 'human') { v.dockHint.textContent = t('game.tapRoll'); await v.waitRoll(); v.dockHint.textContent = ''; }
+          if (kind === 'human') { if (!v.is3d) v.dockHint.textContent = t('game.tapRoll'); await v.waitRoll(); v.dockHint.textContent = ''; }
           else { v.dockHint.textContent = t('game.turn', { name: names[color] }); await sleep(settings().reduceMotion ? 150 : 600); }
           if (my.dead) return;
           const roll = await rollAt(match.seed, match.log.length);
@@ -276,7 +313,8 @@ function openDaily(n) {
     const snap = skip => hist.push({ skip, s: JSON.stringify(g) });
     const counts = { 0: 4, 1: puz.toks[1].length, 2: puz.toks[2].length, 3: puz.toks[3].length };
     const names = { 0: t('p.you'), 1: '', 2: '', 3: '' };
-    const gv = view = new GameView({ colors: [0, 1, 2, 3], tokens: 4, names: { 0: t('p.you'), 1: ' ', 2: ' ', 3: ' ' }, counts });
+    const gv = view = new GameView({ colors: [0, 1, 2, 3], tokens: 4, names: { 0: t('p.you'), 1: ' ', 2: ' ', 3: ' ' }, counts, gfx: gfxMode(), dice: false });
+    if (gv.is3d) gv.board.setViewColor(0, true);
     gv.chips.remove(); gv.dock.remove();
     const rollsEl = h('div', { class: 'rolls', 'aria-label': t('daily.rolls') });
     const msg = h('div', { class: 'bubble' });
@@ -421,10 +459,11 @@ function renderFamily(room, me, { push = true } = {}) {
     const { state } = roomState(room);
     const colors = room.seats.map(s => s.c);
     const names = {}; room.seats.forEach(s => { names[s.c] = s.name; });
-    const v = view = new GameView({ colors, tokens: room.tokens, names });
+    const v = view = new GameView({ colors, tokens: room.tokens, names, gfx: gfxMode() });
     const my = ctl = { dead: false };
     v.place(state, 0);
     const mySeat = me.seat, myColor = room.seats[mySeat].c;
+    if (v.is3d) { v.board.setViewColor(myColor, true); v.board.setInsets(214, 170); }
     const curSeat = state.turn, curName = room.seats[curSeat].name;
     const share = (seatIdx, forceCopy = false) => {
       const url = roomUrl(room);
@@ -451,7 +490,7 @@ function renderFamily(room, me, { push = true } = {}) {
         // my turn: keep going while I have extra turns
         let st = state;
         for (;;) {
-          v.setTurn(myColor); v.setBubble(t('fam.yourTurn')); v.dockHint.textContent = t('game.tapRoll'); v.extra.replaceChildren();
+          v.setTurn(myColor); v.setBubble(t('fam.yourTurn')); if (!v.is3d) v.dockHint.textContent = t('game.tapRoll'); v.extra.replaceChildren();
           await v.waitRoll(); v.dockHint.textContent = '';
           const { rollCounts } = roomState(room);
           const roll = await nextRoll(room, me.seed);
@@ -501,11 +540,12 @@ async function familyResult(room, me, state, names) {
 }
 
 // ---------- boot ----------
-function boot() {
+async function boot() {
   const st = settings();
   setLang(st.lang);
   const prefersReduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (st.reduceMotion || (prefersReduce && st.reduceMotion !== false)) document.documentElement.dataset.motion = 'reduce';
+  await initGfx();
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
   document.addEventListener('pointerdown', unlock, { once: true });
   // A family link tapped while the app is already open only changes the hash (no reload).
@@ -524,7 +564,7 @@ function boot() {
     }
     catch { toast(t('fam.badLink')); }
   }
-  show('home', homeScreen, { push: false });
+  if (!app.firstChild) show('home', homeScreen, { push: false }); // never paint over a screen the user already opened
 }
 boot();
 
@@ -533,4 +573,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     if (!navigator.serviceWorker.controller) setTimeout(() => toast(t('offline.ready')), 1200);
   }).catch(() => {}));
 }
-window.__ludo = { show, goHome, startLocal, openDaily };
+window.__ludo = { show, goHome, startLocal, openDaily, gfxMode, board: () => view && view.board };

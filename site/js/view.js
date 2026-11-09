@@ -8,10 +8,14 @@ import { h, sleep, reduceMotion } from './ui.js';
 import { say, t } from './i18n.js';
 import { sfx, buzz } from './audio.js';
 
+// The 3D board is loaded lazily by app.js (so Lite mode / old phones never download it).
+let Board3DClass = null;
+export function setBoard3D(cls) { Board3DClass = cls; }
+
 const PIPS = { 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] };
 
 export class GameView {
-  constructor({ colors, tokens, names, avatars, counts }) {
+  constructor({ colors, tokens, names, avatars, counts, gfx = 'lite', dice = true }) {
     this.colors = colors; this.tokens = tokens; this.names = names; this.avatars = avatars || {};
     this.counts = counts || null;
     this.waiters = [];
@@ -20,13 +24,23 @@ export class GameView {
     this.chips = h('div', { class: 'players', role: 'list' });
     this.boardWrap = h('div', { class: 'board-wrap' });
     this.bubble = h('div', { class: 'bubble', 'aria-live': 'polite' });
-    this.dice = h('button', { class: 'dice', 'aria-label': t('game.dice'), disabled: true },
+    this.dice = h('button', { class: 'dice', 'aria-label': t('game.dice'), 'data-tip': t('game.tapRoll'), disabled: true },
       ...Array.from({ length: 9 }, (_, i) => h('span', { class: 'pip', 'data-p': i + 1 })));
     this.dockHint = h('div', { class: 'dock-hint' });
     this.extra = h('div', { class: 'dock-extra' });
     this.dock = h('div', { class: 'dock' }, this.dice, h('div', { class: 'dock-col' }, this.dockHint, this.extra));
     this.root.append(this.chips, this.boardWrap, this.bubble, this.dock);
-    this.board = new Board(this.boardWrap, { colors, tokens, counts });
+    this.board = null;
+    if (gfx === '3d' && Board3DClass) {
+      try { this.board = new Board3DClass(this.boardWrap, { colors, tokens, counts, dice }); }
+      catch (e) { console.warn('3D unavailable, using Lite board', e); this.boardWrap.replaceChildren(); this.board = null; }
+    }
+    if (!this.board) this.board = new Board(this.boardWrap, { colors, tokens, counts });
+    this.is3d = !!this.board.is3d;
+    if (this.is3d) {
+      this.root.classList.add('m3d');
+      if (this.board.useDice) this.board.bindDice(this.dice);
+    }
     this.buildChips();
     this.setFace(1);
     this.dice.addEventListener('click', () => this.onDice && this.onDice());
@@ -51,6 +65,7 @@ export class GameView {
   }
 
   setTurn(color) {
+    if (this.board.setTurn) this.board.setTurn(color);
     for (const c of this.colors) this.chipEls[c].el.classList.toggle('turn', c === color);
     this.dice.style.setProperty('--c', PALETTE[color]);
     this.dice.style.setProperty('--cd', DARK[color]);
@@ -67,6 +82,7 @@ export class GameView {
 
   destroy() {
     this.dead = true;
+    if (this.board.dispose) this.board.dispose();
     this.waiters.forEach(w => w(new Error('cancel')));
     this.waiters = [];
     this.board.clearMovable();
@@ -79,10 +95,12 @@ export class GameView {
       this.waiters.push(fail);
       this.dice.disabled = false;
       this.dice.classList.add('ready');
+      if (this.board.setDiceWaiting) this.board.setDiceWaiting(true);
       this.onDice = () => {
         this.onDice = null;
         this.dice.disabled = true;
         this.dice.classList.remove('ready');
+        if (this.board.setDiceWaiting) this.board.setDiceWaiting(false);
         this.waiters = this.waiters.filter(w => w !== fail);
         res();
       };
@@ -106,6 +124,14 @@ export class GameView {
     d.classList.remove('land', 'six');
     if (this.dead) return;
     sfx.roll(); buzz(12);
+    if (this.is3d && this.board.rollDice) {
+      await this.board.rollDice(value, { onBounce: () => sfx.step() });
+      if (this.dead) return;
+      sfx.land();
+      this.setFace(value);
+      if (value === 6) { sfx.six(); buzz([30, 30, 60]); this.board.shake(0.5); }
+      return;
+    }
     if (reduceMotion()) { this.setFace(value); await sleep(150); }
     else {
       d.classList.add('rolling');

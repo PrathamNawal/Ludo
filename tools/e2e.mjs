@@ -11,7 +11,8 @@ if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const srv = await serve(0);
 const base = `http://localhost:${srv.address().port}/`;
-const browser = await chromium.launch();
+// software GL so WebGL works in headless CI
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const failures = [];
 const errors = [];
 let passed = 0;
@@ -53,9 +54,13 @@ console.log('1. Home, full match vs bot, dice verification');
   check('home renders with Play now', true);
   check('page title', (await page.title()) === 'Ludo Adda');
   check('no sign-in wall: Play now is one tap from first open', !!(await page.$('#play-now')) && !(await page.$('input[type=password], input[type=tel]')));
+  await page.waitForSelector('.hero3d.live canvas', { timeout: 15000 });
+  check('3D hero renders on the home screen', true);
+  check('3D graphics are on by default', (await page.evaluate(() => window.__ludo.gfxMode())) === '3d');
   await page.waitForTimeout(400); await shot(page, '01-home');
   await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 2 }));
   await page.waitForSelector('.dice.ready');
+  check('game board is a WebGL canvas', !!(await page.$('.board-wrap canvas.gl')));
   const lock = await page.textContent('.chip-lock');
   check('dice commitment shown before first roll', /🔒 [0-9a-f]{6}/.test(lock), lock);
   await shot(page, '02-game-start');
@@ -81,6 +86,7 @@ console.log('2. Autosave and resume');
   await ctx.addInitScript(fastSettings);
   const page = await newPage(ctx);
   await page.goto(base);
+  await page.waitForSelector('#play-now');
   await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 4 }));
   let moves = 0;
   await drive(page, async () => { const n = await page.evaluate(() => (JSON.parse(localStorage.getItem('ludoadda.v1')).match || { log: [] }).log.length); moves = n; return n >= 8; }, { maxMs: 60000 });
@@ -212,10 +218,62 @@ console.log('7. Visual pass with full animation');
   await ctx.addInitScript(`if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:{lang:'en',sound:false,haptics:false,reduceMotion:false}}))`);
   const page = await newPage(ctx);
   await page.goto(base);
+  await page.waitForSelector('#play-now');
   await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'bunty', 'off', 'professor'], tokens: 4 }));
   let n = 0;
   await drive(page, async () => { n++; if (n === 60) await shot(page, '11-mid-game'); return n > 400; }, { maxMs: 60000 });
   check('animated match ran without errors', true);
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------- 8. 3D dice shows the rolled number
+console.log('8. 3D dice lands on the rolled face');
+{
+  const ctx = await browser.newContext(mobile);
+  await ctx.addInitScript(fastSettings);
+  const page = await newPage(ctx);
+  await page.goto(base);
+  await page.waitForSelector('#play-now');
+  await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 2 }));
+  await page.waitForSelector('.dice.ready');
+  const res = await page.evaluate(async () => {
+    const b = window.__ludo.board();
+    const normals = { 3: [1, 0, 0], 4: [-1, 0, 0], 1: [0, 1, 0], 6: [0, -1, 0], 2: [0, 0, 1], 5: [0, 0, -1] };
+    const rot = (q, v) => { // rotate vector v by quaternion q
+      const [x, y, z] = v, { x: qx, y: qy, z: qz, w: qw } = q;
+      const ix = qw * x + qy * z - qz * y, iy = qw * y + qz * x - qx * z, iz = qw * z + qx * y - qy * x, iw = -qx * x - qy * y - qz * z;
+      return [ix * qw + iw * -qx + iy * -qz - iz * -qy, iy * qw + iw * -qy + iz * -qx - ix * -qz, iz * qw + iw * -qz + ix * -qy - iy * -qx];
+    };
+    const out = [];
+    for (let v = 1; v <= 6; v++) for (let rep = 0; rep < 3; rep++) {
+      await b.rollDice(v);
+      let best = 0, bestDot = -2;
+      for (const [val, n] of Object.entries(normals)) { const r = rot(b.die.quaternion, n); if (r[1] > bestDot) { bestDot = r[1]; best = +val; } }
+      out.push([v, best, +bestDot.toFixed(3)]);
+    }
+    return out;
+  });
+  const wrong = res.filter(([want, got, dot]) => want !== got || dot < 0.999);
+  check('3D dice shows the rolled number face-up (18 rolls, all values)', wrong.length === 0, JSON.stringify(wrong));
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------- 9. Lite (2D) mode still fully works
+console.log('9. Lite 2D mode');
+{
+  const ctx = await browser.newContext(mobile);
+  await ctx.addInitScript(`if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:{lang:'en',sound:false,haptics:false,reduceMotion:true,gfx:'lite'}}))`);
+  const page = await newPage(ctx);
+  const requests3d = [];
+  page.on('request', r => { if (/three|board3d/.test(r.url())) requests3d.push(r.url()); });
+  await page.goto(base);
+  await page.waitForSelector('#play-now');
+  check('Lite mode never downloads the 3D engine', requests3d.length === 0, requests3d.join(','));
+  await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 2 }));
+  await page.waitForSelector('.dice.ready');
+  check('Lite mode uses the SVG board', !!(await page.$('svg.board')) && !(await page.$('canvas.gl')));
+  const done = await drive(page, async () => !!(await page.$('.result')), { maxMs: 200000 });
+  check('a full Lite match completes', done);
   await ctx.close();
 }
 

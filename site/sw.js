@@ -1,9 +1,10 @@
 // Offline-first service worker: precache the whole app, serve cache first, refresh in background.
-const VERSION = 'ludo-adda-v1';
+const VERSION = 'ludo-adda-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/rules.js', 'js/dice.js', 'js/bots.js', 'js/puzzle.js', 'js/family.js',
-  'js/i18n.js', 'js/store.js', 'js/audio.js', 'js/board.js', 'js/view.js', 'js/ui.js',
+  'js/i18n.js', 'js/store.js', 'js/audio.js', 'js/board.js', 'js/board3d.js', 'js/view.js', 'js/ui.js',
+  'vendor/three.min.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
 ];
 self.addEventListener('install', e => {

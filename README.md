@@ -10,13 +10,15 @@ The product thinking is in [`GAME_CONCEPT.md`](GAME_CONCEPT.md). This repo is th
 
 | Pillar (from the concept) | Status | How it works |
 |---|---|---|
-| **Play in 10 seconds, no friction** | ✅ | One tap on *Abhi khelo* starts a match vs 3 bots as a guest. No login, no permission prompts, no tutorial. 233 KB total. |
+| **Real 3D board** | ✅ | three.js scene: lit and shadowed rosewood table, inlaid board with raised tiles, turned pawns that hop tile to tile, a rounded physical dice that tumbles and lands on the true rolled face, saturated colours, reflections. Drag to orbit; the camera rotates so *your* colour is bottom-left, punches in on a six and shakes on a capture. A 3D hero board floats on the home screen. |
+| **Lite mode** | ✅ | The original flat SVG board stays as *Settings, Graphics, Lite*. It is chosen automatically on very weak devices or when WebGL is missing, and never downloads the 3D engine. |
+| **Play in 10 seconds, no friction** | ✅ | One tap on *Abhi khelo* starts a match vs 3 bots as a guest. No login, no permission prompts, no tutorial. About 0.8 MB total with the 3D engine (about 0.25 MB in Lite mode). |
 | **Sachcha Dice** (provably fair) | ✅ | Before the first roll the device creates a 256-bit seed and shows its SHA-256 *lock code*. Roll *i* = `HMAC-SHA256(seed, "ludo-adda:v1:i")` with bias-free rejection sampling. After the match, **Verify my dice** recomputes every roll against the lock code. Per-player dice-stats charts show the distribution against fair dice. |
 | **Roz ki Chaal** (daily puzzle) | ✅ | A deterministic daily puzzle, #1 = 1 Jan 2026. Every puzzle is solver-verified to have 1 to 3 solutions. The whole back-catalogue is generated on the fly, so it needs no storage and works offline. 3 free hints a day, streaks, emoji-grid sharing. |
 | **Parivaar Board** (async family play) | ✅ (link-based) | The whole match is a replayable move log inside the URL. Play your move, tap *Send on WhatsApp*, the next person opens the link. No server. Each seat's dice come from a seed that only lives on that person's device; its lock code travels in the link and the seed can be revealed at the end for verification. |
 | **Bot personalities** | ✅ | Dadi (careful), Bunty (aggressive), Professor (smart), Chhotu (makes kid mistakes). Utility-scoring AI, one weight set per personality. |
 | **Apni Bhasha** | 🟡 3 languages | Hinglish, English, हिन्दी, with cricket-style commentary. More Indian languages are next (the string tables are ready for them). |
-| **Bharat-grade performance** | ✅ | Pure SVG + vanilla JS, no framework, no build step, no fonts or images to download. Service worker precaches everything: the app reloads and plays with the network off. |
+| **Bharat-grade performance** | ✅ | Vanilla JS, no framework, no build step for the app, no fonts or images to download (textures and sounds are generated). 3D adapts: smaller shadow maps, capped pixel ratio and no anti-aliasing on weak devices; renders only while something is moving. Service worker precaches everything: the app reloads and plays with the network off. |
 | **Desi game feel** | ✅ | Tiered feedback: tumbling dice, dhol on a six, decaying screen shake + hit-stop on a capture, rangoli bloom and shehnai when a token reaches home. All sounds are synthesised (nothing to download). Honours *reduce motion*. |
 
 ### Not built yet (honest list)
@@ -24,7 +26,7 @@ The product thinking is in [`GAME_CONCEPT.md`](GAME_CONCEPT.md). This repo is th
 - **Live online matches** (real-time, random opponents) need a server, which GitHub Pages cannot host. Planned next: Nakama or a small WebSocket service.
 - **Voice-note moves**, **creator rooms**, **Chaupar heritage mode**, **iOS store app**, **10+ languages**.
 - **Family-mode fairness is tamper-evident, not trustless.** Without a server, a device could grind seeds before publishing its lock code. A server-side phase closes this. Single-device and vs-bot matches are fully verifiable.
-- Android back button, install prompt and offline are tested in headless Chromium; test on real low-end phones before a wide launch.
+- Everything is tested in headless Chromium with *software* WebGL. Frame rate on real phones, especially 2 GB Android devices, is **unmeasured**: try it, and use Lite if it stutters.
 
 ## Rules implemented
 
@@ -36,11 +38,12 @@ Classic Ludo, 2 to 4 players, 4 or 2 tokens each (*Quick Ludo*): a six brings a 
 npm install            # only needed for the browser tests (playwright)
 npm test               # 16 unit tests: rules, 1,500 random bot games, dice, 600 puzzles, family codec, i18n
 npm run serve          # http://localhost:8080
-npm run e2e            # 25 end-to-end checks in headless Chromium (SHOTS=dir saves screenshots)
+npm run e2e            # 32 end-to-end checks in headless Chromium with software WebGL (SHOTS=dir saves screenshots)
+npm run vendor         # rebuild site/vendor/three.min.js (tree-shaken three.js) from tools/three-entry.js
 npm run icons          # re-render PNG icons from the SVGs
 ```
 
-Layout: `site/` is the deployable app. `site/js/rules.js` (pure rules engine), `dice.js`, `bots.js`, `puzzle.js`, `family.js` are DOM-free and unit-tested in Node; `board.js`, `view.js`, `app.js` are the UI.
+Layout: `site/` is the deployable app. `site/js/rules.js` (pure rules engine), `dice.js`, `bots.js`, `puzzle.js`, `family.js` are DOM-free and unit-tested in Node; `board3d.js` (3D) / `board.js` (Lite 2D), `view.js` and `app.js` are the UI. `site/vendor/three.min.js` is a tree-shaken three.js r187 build (MIT) committed so the site needs no build step and makes no third-party requests.
 
 ### How the code maps to the [awesome-gamedev-agent-skills](https://github.com/gamedev-skills/awesome-gamedev-agent-skills) it was built with
 

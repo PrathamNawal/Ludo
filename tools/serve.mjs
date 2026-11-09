@@ -5,10 +5,12 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../site/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
-export function serve(port = 8080) {
+export function serve(port = 8080, override = null) {
   const srv = http.createServer(async (req, res) => {
     try {
       let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+      const ov = override && override(p);
+      if (ov !== null && ov !== undefined) { res.writeHead(200, { 'content-type': types[extname(p)] || 'text/plain', 'cache-control': 'no-store' }); return res.end(ov); }
       let f = join(root, p);
       if ((await stat(f).catch(() => null))?.isDirectory()) f = join(f, 'index.html');
       const body = await readFile(f);

@@ -3,7 +3,8 @@
 export const LANGS = { hg: 'Hinglish', en: 'English', hi: 'हिन्दी' };
 let lang = 'hg';
 export const getLang = () => lang;
-export function setLang(l) { if (LANGS[l]) { lang = l; document.documentElement.lang = l === 'en' ? 'en' : 'hi'; } }
+// Hinglish is Latin script, so it is tagged 'en' (and the page is marked translate="no" in index.html)
+export function setLang(l) { if (LANGS[l]) { lang = l; document.documentElement.lang = l === 'hi' ? 'hi' : 'en'; } }
 
 const S = {
   'app.name': { en: 'Ludo Adda', hi: 'लूडो अड्डा', hg: 'Ludo Adda' },
@@ -115,6 +116,7 @@ const S = {
   'fam.seatOk': { en: '{name}: ✅ {n} rolls verified', hi: '{name}: ✅ {n} रोल सही', hg: '{name}: ✅ {n} roll sahi' },
   'fam.seatPending': { en: '{name}: seed not revealed yet', hi: '{name}: सीड अभी नहीं खुला', hg: '{name}: seed abhi nahi khula' },
   'fam.seatBad': { en: '{name}: ⚠️ mismatch', hi: '{name}: ⚠️ गड़बड़', hg: '{name}: ⚠️ gadbad' },
+  'app.updated': { en: 'New version ready. It loads when you go home.', hi: 'नया वर्ज़न तैयार है। होम पर जाते ही लोड होगा।', hg: 'Naya version ready hai. Home pe jaate hi load hoga.' },
   'ok': { en: 'OK', hi: 'ठीक है', hg: 'OK' },
   'offline.ready': { en: 'Ready to play offline', hi: 'ऑफलाइन खेलने को तैयार', hg: 'Offline khelne ke liye ready' },
 };

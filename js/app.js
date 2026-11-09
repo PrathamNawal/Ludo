@@ -6,7 +6,7 @@ import { generatePuzzle, solve, dayNumber, playRoll, isGoalMet, GOAL_KEY, TIERS 
 import { encodeRoom, decodeRoom, roomState, nextRoll, verifyRoom, newRoomId } from './family.js';
 import { t, say, setLang, getLang, LANGS } from './i18n.js';
 import { db, settings, update, getSeat, setSeat } from './store.js';
-import { sfx, unlock, buzz } from './audio.js';
+import { sfx, unlock, buzz, speak, stopSpeaking, voiceSupported } from './audio.js';
 import { $, h, sleep, toast } from './ui.js';
 import { GameView, setBoard3D } from './view.js';
 import './version.js';
@@ -42,6 +42,7 @@ const gfxMode = () => (gl && wants3d() ? '3d' : 'lite');
 
 // ---------- navigation ----------
 function stopActive() {
+  stopSpeaking();
   if (heroBoard) { heroBoard.dispose(); heroBoard = null; }
   if (ctl) ctl.dead = true;
   if (view) view.destroy();
@@ -144,7 +145,13 @@ function openSettings() {
       closeModal(); if (screenName === 'home') show('home', homeScreen, { push: false });
     }),
     h('p', { class: 'foot small', text: t('settings.gfxTip') }),
-    onoff('sound', t('settings.sound'), v => { if (v) { unlock(); sfx.good(); } }),
+    onoff('sound', t('settings.sound'), v => { if (v) { unlock(); sfx.good(); } else stopSpeaking(); }),
+    onoff('voice', t('settings.voice'), v => {
+      if (!v) { stopSpeaking(); return; }
+      unlock();
+      if (!voiceSupported()) { toast(t('voice.none')); return; }
+      speak(t('voice.sample')); // so you can hear straight away whether this phone has a voice
+    }),
     onoff('haptics', t('settings.haptics'), v => { if (v) buzz(40); }),
     onoff('reduceMotion', t('settings.motion'), v => { document.documentElement.dataset.motion = v ? 'reduce' : ''; }),
     installEvt ? h('button', { class: 'btn', onclick: async () => { installEvt.prompt(); installEvt = null; closeModal(); } }, '📲 ' + t('settings.install')) : null,
@@ -220,7 +227,7 @@ function runLocal(match) {
     v.place(state, 0);
     v.dockHint.textContent = '';
     (async () => {
-      v.setBubble(match.log.length ? '' : say('start'));
+      if (match.log.length) v.setBubble(''); else v.commentate(say('start'));
       try {
         while (state.winner === null && !my.dead) {
           const color = current(state), kind = match.kinds[color];
@@ -486,7 +493,7 @@ function renderFamily(room, me, { push = true } = {}) {
 
     (async () => {
       try {
-        if (state.winner !== null) { v.setTurn(state.winner); v.setBubble(say('win', { name: names[state.winner] })); return familyResult(room, me, state, names); }
+        if (state.winner !== null) { v.setTurn(state.winner); v.commentate(say('win', { name: names[state.winner] })); return familyResult(room, me, state, names); }
         v.setTurn(state.colors[curSeat]);
         if (curSeat !== mySeat) {
           v.setBubble(t('fam.waiting', { name: curName })); v.dockHint.textContent = t('fam.waiting', { name: curName });

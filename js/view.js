@@ -6,7 +6,7 @@ import { Board, PALETTE, DARK } from './board.js';
 import { cellXY, SAFE, START_IDX, homeCount } from './rules.js';
 import { h, sleep, reduceMotion } from './ui.js';
 import { say, t } from './i18n.js';
-import { sfx, buzz } from './audio.js';
+import { sfx, buzz, speak } from './audio.js';
 
 // The 3D board is loaded lazily by app.js (so Lite mode / old phones never download it).
 let Board3DClass = null;
@@ -72,6 +72,8 @@ export class GameView {
   }
 
   setBubble(text) { this.bubble.textContent = text; }
+  /** Commentary: show it and say it. */
+  commentate(text) { this.bubble.textContent = text; if (text) speak(text); }
   setFace(n) {
     this.dice.dataset.face = n;
     const on = new Set(PIPS[n]);
@@ -166,13 +168,13 @@ export class GameView {
     if (this.dead) return;
     const name = this.names[ev.color];
     if (ev.forfeit) {
-      this.setBubble(say('forfeit', { name })); sfx.bad(); buzz([60, 40, 60]);
+      this.commentate(say('forfeit', { name })); sfx.bad(); buzz([60, 40, 60]);
       await sleep(900); this.place(state, 0); return;
     }
-    if (ev.pass) { this.setBubble(say('pass', { name })); await sleep(reduceMotion() ? 200 : 650); return; }
+    if (ev.pass) { this.commentate(say('pass', { name })); await sleep(reduceMotion() ? 200 : 650); return; }
 
     const left = ev.from === -1;
-    this.setBubble(ev.roll === 6 && !left ? say('six', { name }) : left ? say('leave', { name }) : say('roll', { name, n: ev.roll }));
+    this.commentate(ev.roll === 6 && !left ? say('six', { name }) : left ? say('leave', { name }) : say('roll', { name, n: ev.roll }));
     if (left) { sfx.leave(); }
     // the stepping hops
     this.board.front(ev.color, ev.token);
@@ -190,19 +192,19 @@ export class GameView {
       this.board.flash(x, y, '#ff3d00');
       this.board.shake(1.2);
       const victim = this.names[ev.captured[0].color];
-      this.setBubble(say('capture', { name, victim }));
+      this.commentate(say('capture', { name, victim }));
       for (const v of ev.captured) {
         const chip = this.chipEls[v.color].el;
         chip.classList.add('hit'); setTimeout(() => chip.classList.remove('hit'), 600);
       }
       await Promise.all(ev.captured.map(v => this.board.slinkHome(v.color, v.idx)));
     } else if (ev.to <= 50 && SAFE.has((START_IDX[ev.color] + ev.to) % 52) && !left && Math.random() < 0.35) {
-      this.setBubble(say('safe', { name }));
+      this.commentate(say('safe', { name }));
     }
     if (ev.home) {
       sfx.home(); buzz([20, 40, 20, 40, 60]);
       this.board.bloom(x, y, ev.color, ev.win);
-      this.setBubble(say(ev.win ? 'win' : 'home', { name }));
+      this.commentate(say(ev.win ? 'win' : 'home', { name }));
     }
     if (ev.win) { sfx.win(); this.confetti(); }
     this.place(state, 140);

@@ -356,6 +356,36 @@ console.log('11. Repository is publishable as-is');
   check('every file the service worker precaches exists (a missing one would break install)', missing.length === 0, missing.join(','));
 }
 
+// ---------------------------------------------------------------- 12. spoken commentary reaches the device's speech engine
+console.log('12. Spoken commentary');
+{
+  // Headless Chromium has no real voices, so stub the engine and verify WHAT it is asked to say and in which language.
+  const stub = `window.__spoken=[];const fake={speak(u){window.__spoken.push({text:u.text,lang:u.lang})},cancel(){},getVoices(){return[]},addEventListener(){}};Object.defineProperty(window,'speechSynthesis',{value:fake,configurable:true});window.SpeechSynthesisUtterance=class{constructor(t){this.text=t}};`;
+  const run = async (settings, ms, until) => {
+    const ctx = await browser.newContext(mobile);
+    await ctx.addInitScript(stub);
+    await ctx.addInitScript(`if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:${JSON.stringify({ sound: true, voice: true, haptics: false, reduceMotion: true, gfx: 'lite', ...settings })}}))`);
+    const page = await newPage(ctx);
+    await page.goto(base); await page.waitForSelector('#play-now');
+    await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 4 }));
+    await page.waitForSelector('.dice.ready');
+    await drive(page, async () => until ? (await page.evaluate(() => window.__spoken.length)) >= until : false, { maxMs: ms });
+    const spoken = await page.evaluate(() => window.__spoken);
+    await ctx.close();
+    return spoken;
+  };
+  const en = await run({ lang: 'hg' }, 60000, 3);
+  check('commentary is spoken during play (Hinglish)', en.length >= 3 && en.every(x => x.text && x.text.length > 3), JSON.stringify(en.slice(0, 3)));
+  check('Hinglish is read by an Indian-English voice (en-IN), which reads Romanised Hindi best', en.every(x => x.lang === 'en-IN'));
+  check('the opening line is spoken', /Adda|toss|Toss|Welcome/i.test(en[0].text), en[0].text);
+  const hi = await run({ lang: 'hi' }, 60000, 2);
+  check('Hindi script is read by a Hindi voice (hi-IN)', hi.length >= 2 && hi.every(x => x.lang === 'hi-IN' && /[ऀ-ॿ]/.test(x.text)), JSON.stringify(hi.slice(0, 2)));
+  const off = await run({ lang: 'hg', voice: false }, 8000, 0);
+  check('voice commentary can be switched off', off.length === 0, String(off.length));
+  const muted = await run({ lang: 'hg', sound: false }, 8000, 0);
+  check('turning sound off also silences the voice', muted.length === 0, String(muted.length));
+}
+
 await browser.close(); srv.close();
 console.log(`\n${passed} checks passed, ${failures.length} failed`);
 if (errors.length) console.log('Browser errors:\n  ' + errors.join('\n  '));

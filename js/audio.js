@@ -1,6 +1,7 @@
 // Synthesised audio: no files to download, so the app stays tiny and works offline.
 // Small random pitch offsets keep repeated sounds from feeling robotic (audio-design skill).
 import { settings } from './store.js';
+import { getLang } from './i18n.js';
 
 let ctx = null, master = null;
 function ensure() {
@@ -78,3 +79,35 @@ export const sfx = {
 export function buzz(pattern) {
   try { if (settings().haptics && navigator.vibrate) navigator.vibrate(pattern); } catch { /* ignore */ }
 }
+
+// ---------- spoken commentary (the phone's own text-to-speech: free, nothing to download) ----------
+// Hindi script is read by a Hindi voice; Hinglish and English (Latin script) by an Indian-English voice,
+// which reads Romanised Hindi far better than a Hindi voice does.
+const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+let voices = [];
+const loadVoices = () => { try { voices = synth ? synth.getVoices() : []; } catch { voices = []; } };
+if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices); } catch { /* old browsers */ } }
+const VOICE_LANG = { hi: 'hi-IN', hg: 'en-IN', en: 'en-IN' };
+const norm = l => String(l || '').replace('_', '-');
+function pickVoice(want) {
+  const base = want.split('-')[0];
+  return voices.find(v => norm(v.lang) === want) || voices.find(v => norm(v.lang).startsWith(base + '-')) || voices.find(v => norm(v.lang).startsWith(base)) || null;
+}
+export const voiceSupported = () => !!synth && typeof SpeechSynthesisUtterance !== 'undefined';
+/** Speak one commentary line. Latest line wins (cancels the previous) so speech never lags the game. */
+export function speak(text) {
+  const st = settings();
+  if (!voiceSupported() || !st.sound || st.voice === false || !text) return false;
+  try {
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const want = VOICE_LANG[getLang()] || 'en-IN';
+    u.lang = want;
+    const v = pickVoice(want);
+    if (v) u.voice = v;
+    u.rate = 1.03; u.pitch = 1; u.volume = 1;
+    synth.speak(u);
+    return true;
+  } catch { return false; }
+}
+export function stopSpeaking() { try { if (synth) synth.cancel(); } catch { /* ignore */ } }

@@ -3,12 +3,16 @@ import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-const root = fileURLToPath(new URL('../site/', import.meta.url));
+const root = fileURLToPath(new URL('../', import.meta.url));
+// Only the files that make up the deployed game are served, exactly like the published site.
+const DEPLOYED = /^\/(index\.html|sw\.js|manifest\.webmanifest|(css|js|vendor|icons)\/.*)?$/;
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 export function serve(port = 8080, override = null) {
   const srv = http.createServer(async (req, res) => {
     try {
       let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+      p = p.replace(/\\/g, '/');
+      if (!DEPLOYED.test(p)) { res.writeHead(404); return res.end('not found'); }
       const ov = override && override(p);
       if (ov !== null && ov !== undefined) { res.writeHead(200, { 'content-type': types[extname(p)] || 'text/plain', 'cache-control': 'no-store' }); return res.end(ov); }
       let f = join(root, p);

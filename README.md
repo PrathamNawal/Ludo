@@ -39,11 +39,11 @@ npm install            # only needed for the browser tests (playwright)
 npm test               # 16 unit tests: rules, 1,500 random bot games, dice, 600 puzzles, family codec, i18n
 npm run serve          # http://localhost:8080
 npm run e2e            # 32 end-to-end checks in headless Chromium with software WebGL (SHOTS=dir saves screenshots)
-npm run vendor         # rebuild site/vendor/three.min.js (tree-shaken three.js) from tools/three-entry.js
+npm run vendor         # rebuild vendor/three.min.js (tree-shaken three.js) from tools/three-entry.js
 npm run icons          # re-render PNG icons from the SVGs
 ```
 
-Layout: `site/` is the deployable app. `site/js/rules.js` (pure rules engine), `dice.js`, `bots.js`, `puzzle.js`, `family.js` are DOM-free and unit-tested in Node; `board3d.js` (3D) / `board.js` (Lite 2D), `view.js` and `app.js` are the UI. `site/vendor/three.min.js` is a tree-shaken three.js r187 build (MIT) committed so the site needs no build step and makes no third-party requests.
+Layout: the repo root *is* the deployable app (`index.html`, `sw.js`, `css/`, `js/`, `vendor/`, `icons/`). `js/rules.js` (pure rules engine), `dice.js`, `bots.js`, `puzzle.js`, `family.js` are DOM-free and unit-tested in Node; `board3d.js` (3D) / `board.js` (Lite 2D), `view.js` and `app.js` are the UI. `vendor/three.min.js` is a tree-shaken three.js r187 build (MIT) committed so the site needs no build step and makes no third-party requests.
 
 ### How the code maps to the [awesome-gamedev-agent-skills](https://github.com/gamedev-skills/awesome-gamedev-agent-skills) it was built with
 
@@ -59,7 +59,7 @@ Layout: `site/` is the deployable app. `site/js/rules.js` (pure rules engine), `
 
 ## Deploy
 
-Pushing to `main` runs `.github/workflows/pages.yml` (tests, then deploy `site/` to GitHub Pages). One-time setup: repo *Settings, Pages, Source: GitHub Actions*.
+Pushing to `main` publishes the game at the Pages URL. It works with either Pages source: the repo root is the site (with `.nojekyll`), so GitHub's branch build serves the game, and `.github/workflows/pages.yml` (tests, then deploy) publishes the identical file set. Prefer *Settings, Pages, Source: GitHub Actions* so only one deploy runs.
 
 ## Legal
 

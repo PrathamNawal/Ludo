@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newSeed, rollAt, commitOf, verifyRolls, faceStats } from '../site/js/dice.js';
+import { newSeed, rollAt, commitOf, verifyRolls, faceStats } from '../js/dice.js';
 
 test('rolls are deterministic per (seed, index) and in 1..6', async () => {
   const seed = newSeed();

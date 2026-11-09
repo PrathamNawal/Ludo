@@ -12,8 +12,8 @@
 |---|---|
 | Ludo King was still India's #1 downloaded game in Q1 and Q2 2026, with over 1.25B lifetime downloads, and earns mostly from ads | Demand is proven. We can't win by being "another Ludo". We win on the experience gaps: ads, trust, family, language. |
 | The **Promotion and Regulation of Online Gaming Act, 2025** bans online money games. Its Rules came into force on **1 May 2026**. Zupee dropped paid games and kept its free formats. | Real-money Ludo is gone. Free **social** Ludo is legal and now has *less* competition for attention. We never use convertible currency. |
-| India's mobile game downloads were about 2B in Q2 2026, but Free Fire and BGMI take about 50% of revenue | Ads plus micro-cosmetic IAP over UPI is the realistic model. Don't plan around whale spending. |
-| The most common player complaints about existing Ludo apps are "dice is rigged", too many ads, and disconnects or bots that ruin games | Each complaint is a 10x opportunity (see pillars). |
+| India's mobile game downloads were about 2B in Q2 2026, but Free Fire and BGMI take about 50% of revenue | Casual players don't spend much anyway. We launch **100% free with zero ads** and win on goodwill and word of mouth. |
+| The most common player complaints about existing Ludo apps are "dice is rigged", too many ads, and disconnects or bots that ruin games | Each complaint is a 10x opportunity (see pillars). We fix "too many ads" by having **none**. |
 
 ---
 
@@ -45,7 +45,7 @@ This fixes the two biggest weaknesses of a multiplayer-only game: you can't play
 - You share the result as an emoji grid on WhatsApp, Wordle-style: `🎲 Roz ki Chaal #214 🟥🟥⭐ 3/3`.
 - Puzzles are **generated and verified by a solver**: the `puzzle` skill's generate-and-verify-solvable pattern plus seeded RNG. Each one is checked by a person before it ships.
 - **1,000+ puzzles at launch** in a back-catalogue with 3 difficulty tiers. Target: 5,000.
-- This also has a learning angle: "Train your planning brain." It can later support a paid ad-free **Ludo Masterclass** puzzle pack (Revenue Rule 4).
+- This also has a learning angle: "Train your planning brain." All puzzles are free and there's no paywall on hints. You get 3 free hints a day, and more come from solving streaks.
 
 ### Pillar 4: Apni Bhasha, Ludo that talks like you
 - **Live commentary in 10+ languages**: Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Bhojpuri, and Hinglish. The commentary is written in cricket-commentator style ("Aur yeh gayi goti! Seedha ghar wapas!") and generated from a small set of event templates, so it works offline with no server calls.
@@ -69,7 +69,7 @@ From the `game-feel` skill, with feedback tiers matched to the size of the momen
 - **Tier 2 (a six):** a dhol hit and a brief zoom-pulse on the board.
 - **Tier 3 (a capture):** hit-stop for 80 ms, the captured token "slinks" home, and the opponent's avatar does a dramatic *"Arre!"* reaction.
 - **Tier 4 (a token reaches home):** a rangoli bloom trail and shehnai flourish. The winner gets a baraat-style victory lap.
-- Festival skins (Diwali diyas, Holi colour splashes, Eid lanterns, Pongal kolam, Onam pookalam) ship as **themed packs inside the evergreen game**, never as a separate app. *(Revenue Rule 3.)*
+- Festival skins (Diwali diyas, Holi colour splashes, Eid lanterns, Pongal kolam, Onam pookalam) ship as **free themed packs inside the evergreen game** that you unlock by playing during the festival, never as a separate app. *(Revenue Rule 3.)*
 
 ### Pillar 7: Chaupar heritage mode (later; the cultural moat)
 Ludo comes from **Pachisi/Chaupar**, the cross-shaped board game of the Mahabharata and Akbar's life-size court board at Fatehpur Sikri. A beautifully illustrated Chaupar mode with cowrie-shell throws gives us a story no foreign clone can tell, and something press and schools will cover. It ships only after the classic game is rated 4.3★ or higher (depth before breadth).
@@ -89,31 +89,36 @@ Ludo comes from **Pachisi/Chaupar**, the cross-shaped board game of the Mahabhar
 
 ---
 
-## 5. Monetization: ads players don't hate, no real money
+## 5. Free forever (for now): zero ads, zero friction
 
-*(Revenue Rule 1: rewarded video is the main ad format and **we never use banner ads**.)*
+**Decision:** Ludo Adda launches **completely free**. It has **no ads of any kind** and **no in-app purchases**, and nothing is locked. Every skin, board, hint, and mode is earned by playing. The goal of v1 is love and word of mouth, not revenue.
 
-- **Rewarded video** (opt-in only): an extra Roz ki Chaal hint, a double daily cosmetic reward, or a "revive streak".
-- **Interstitial** only *between* matches, at most 1 every 3 minutes of play. Never in the first session, never in a family async game, never in a puzzle.
-- **Cosmetic IAP via UPI, priced for India:**
-  - Dice or token skins: ₹10–₹49
-  - Board themes: ₹29–₹99
-  - Festival packs: ₹49
-  - **Adda Pass** (monthly cosmetic track): ₹49
-  - **Remove ads forever:** ₹149
-- **Legal guardrails** (under the 2025 Act): no entry fees and no prize pools. Coins can't be bought back, cashed out, or traded. There are no paid loot boxes; any random cosmetic drop shows its odds. Match records and age gating are kept per the 2026 Rules.
+### Zero-friction rules (these are product requirements)
+| Moment | Rule |
+|---|---|
+| Install | Under 30 MB. Nothing extra to download on first launch. |
+| First open | **You're rolling the dice within 10 seconds.** No login, OTP, sign-up, or permission pop-ups, and no forced tutorial. The first match teaches you as you play. |
+| Identity | You play as a guest automatically, identified by your device. Linking a phone number or Google account is optional, offered only when you want to sync to a new phone. |
+| Permissions | We ask only when a feature needs it, for example the microphone the first time you record a voice note. Contacts are never required. |
+| Joining a friend | Tapping a WhatsApp link opens the game straight into the room. If the game isn't installed, a lightweight web version lets you play that match right away. |
+| Every screen | One-thumb play, big buttons, and no more than 2 taps from home to a match. |
+| Interruptions | No ads, pop-up offers, "rate us" nags during play, or daily-login pressure. A gentle rating prompt appears once, only after a win. |
+| Leaving | Quitting mid-game never costs anything you care about. A bot takes over and the game carries on. |
 
-**Revenue sanity check** (from the skill's India benchmarks, at 50K DAU, about 3 sessions per day):
-- Rewarded video: 50,000 users × 40% watch rate × $5 eCPM ≈ **$100/day**
-- Interstitials: 50,000 users × 1 per day × $1 eCPM ≈ **$50/day**
-- IAP: 1.5% of DAU spend about ₹60 per month, so 750 users × ₹60 ≈ ₹45K/month ≈ **$18/day**
-- Total: about **$170/day, or ₹4.3 lakh/month**. This is a sustainable base for a small team, and it scales with family rooms (where 1 install brings 3 more).
+### Legal guardrails (still apply even though the game is free)
+- No entry fees, prize pools, or real-money value. Coins and rewards are cosmetic only and can never be bought, cashed out, or traded, which keeps us clearly a free social game under the Online Gaming Act 2025.
+- We keep match records and age gating as the 2026 Rules require.
+
+### Keeping it free sustainably
+- **Offline-first keeps server costs tiny.** Bots, pass-and-play, hotspot play, and Roz ki Chaal never touch a server. Only live online matches and family async turns do, and an async turn is a few bytes.
+- **What we measure instead of revenue:** Day-1, Day-7, and Day-30 retention, family rooms created, invites per user, Roz ki Chaal shares, and Play Store rating (target 4.5★ or higher).
+- **Later, only if needed:** optional cosmetic support packs. Nothing would be gated, and there would still be no ads. That decision gets revisited once we have more than 100K daily players.
 
 ---
 
 ## 6. Growth loops
 
-1. **Family invite loop:** creating a Parivaar Board *requires* inviting family over a WhatsApp link, so each organic install brings in 2–3 more.
+1. **Family invite loop:** a Parivaar Board is *more fun* with family, so the game offers a one-tap WhatsApp invite. It's never required: you can start right away with bots filling empty seats. Each organic install should bring in 2–3 more.
 2. **Daily share loop:** the Roz ki Chaal emoji grid gets shared in family and college WhatsApp groups every day.
 3. **Proof loop:** "Verify my dice" and Dice Stats screenshots answer "is it rigged?" publicly, on Reels and YouTube Shorts.
 4. **Creator rooms (Next):** a streamer hosts a live room, and viewers make **free** predictions ("Will Red capture this turn?") for cosmetic badges. There's no money involved.
@@ -163,26 +168,30 @@ Source: [gamedev-skills/awesome-gamedev-agent-skills](https://github.com/gamedev
 - Roz ki Chaal with 1,000 puzzles
 - Hindi, English, and Hinglish
 - Hotspot local multiplayer
-- Rewarded video and between-match interstitials only
+- Guest play with no login, rolling within 10 seconds
+- Zero ads, zero purchases
 - Under 30 MB, Android 8+
 
 **NEXT (months 4–6):**
 - 8 more languages with voice commentary
 - Voice-note moves
-- Festival packs
-- Adda Pass
+- Free festival packs
+- A free season track of cosmetics earned by playing
 - Creator rooms
+- Instant web play from WhatsApp links
 - iOS
 
 **LATER (month 7+):**
 - Chaupar heritage mode
-- Ludo Masterclass paid puzzle pack
+- Ludo Masterclass puzzle collection (free)
 - School and college inter-hostel leagues (free, esports-style, as recognised under the 2025 Act)
 - Smart TV / JioTV casting for living-room family play
+- Revisit optional cosmetic support packs only if we pass 100K daily players
 
 **Deliberately NOT building:**
 - Real-money or "convertible coin" modes (illegal, and they destroy trust)
-- Banner ads
+- Ads of any kind: no banners, interstitials, or rewarded video
+- Paywalls, energy or lives systems, and login walls
 - Power-up "magic" Ludo at launch (it breaks the one-mechanic rule)
 - Standalone festival apps
 - Gacha with hidden odds
@@ -195,12 +204,12 @@ Source: [gamedev-skills/awesome-gamedev-agent-skills](https://github.com/gamedev
 |---|---|---|
 | Market demand | 2 | Huge demand, but Ludo King owns the category, so we need the differentiators |
 | Mechanic clarity | 3 | "Roll and race." Everyone in India already knows it. |
-| Monetization fit | 2 | Rewarded video plus micro-IAP is clear. Real money is off the table. |
+| Monetization fit | 1 | Deliberately zero revenue in v1. It's a growth bet, kept affordable by playing offline-first. |
 | Content scalability | 3 | Solver-generated daily puzzles, cosmetic packs |
 | Feasibility | 2 | Classic offline play is easy. Async rooms and fair-dice backend add real work. |
 | Offline viability | 2 | Core play, puzzles, and hotspot play are offline. Family async needs a network to sync. |
 | Retention mechanism | 3 | Daily puzzle, family streaks, async turns |
-| **Total** | **17 / 21** | **GO**, on condition that launch leads with the differentiators |
+| **Total** | **16 / 21** | **SOFT GO**: free with no ads trades revenue for goodwill, ratings, and growth. Revisit at 100K daily players. |
 
 **The single most important fix:** don't market "a better Ludo". Market **"Family Ludo you can trust"**, built on Parivaar Board, Sachcha Dice, and Roz ki Chaal. Without those three, this is a clone into a market with a 1.25B-download incumbent.
 

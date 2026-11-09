@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { serve } from './serve.mjs';
-import { generatePuzzle, solve, dayNumber } from '../site/js/puzzle.js';
+import { generatePuzzle, solve, dayNumber } from '../js/puzzle.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -26,7 +26,9 @@ async function newPage(ctx) {
 }
 const mobile = { viewport: { width: 390, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true };
 const shot = (page, name) => SHOTS ? page.screenshot({ path: `${SHOTS}/${name}.png` }) : null;
-const fastSettings = `if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:{lang:'hg',sound:false,haptics:false,reduceMotion:true}}))`;
+// Long flows run in Lite 2D (software-rendered WebGL is slow on shared CI runners); 3D flows below are short.
+const fastSettings = `if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:{lang:'hg',sound:false,haptics:false,reduceMotion:true,gfx:'lite'}}))`;
+const fast3d = `if(!localStorage.getItem('ludoadda.v1'))localStorage.setItem('ludoadda.v1', JSON.stringify({version:1,settings:{lang:'hg',sound:false,haptics:false,reduceMotion:true,gfx:'3d'}}))`;
 
 // Drive a human through whatever the UI is asking until `done()` is true.
 async function drive(page, done, { maxMs = 240000, pick = 'first' } = {}) {
@@ -41,8 +43,30 @@ async function drive(page, done, { maxMs = 240000, pick = 'first' } = {}) {
   return false;
 }
 
-// ---------------------------------------------------------------- 1. home + vs-bots match + dice verification
-console.log('1. Home, full match vs bot, dice verification');
+// ---------------------------------------------------------------- 1a. 3D: hero, canvas board, tapping pawns
+console.log('1a. 3D home hero and board input');
+{
+  const ctx = await browser.newContext(mobile);
+  await ctx.addInitScript(fast3d);
+  const page = await newPage(ctx);
+  await page.goto(base);
+  await page.waitForSelector('#play-now');
+  await page.waitForSelector('.hero3d.live canvas', { timeout: 20000 });
+  check('3D hero renders on the home screen', true);
+  check('3D graphics are selected', (await page.evaluate(() => window.__ludo.gfxMode())) === '3d');
+  await page.waitForTimeout(400); await shot(page, '01-home');
+  await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 2 }));
+  await page.waitForSelector('.dice.ready', { timeout: 30000 });
+  check('game board is a WebGL canvas', !!(await page.$('.board-wrap canvas.gl')));
+  check('dice commitment shown before first roll', /🔒 [0-9a-f]{6}/.test(await page.textContent('.chip-lock')));
+  await shot(page, '02-game-start');
+  const reached = await drive(page, async () => (await page.evaluate(() => (JSON.parse(localStorage.getItem('ludoadda.v1')).match || { log: [] }).log.length)) >= 6, { maxMs: 120000 });
+  check('tapping the 3D dice and pawns plays moves (6 rolls recorded)', reached);
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------- 1. vs-bots match + dice verification (Lite, fast)
+console.log('1. Full match vs bot, dice verification');
 {
   const ctx = await browser.newContext(mobile);
   await ctx.addInitScript(fastSettings);
@@ -54,13 +78,8 @@ console.log('1. Home, full match vs bot, dice verification');
   check('home renders with Play now', true);
   check('page title', (await page.title()) === 'Ludo Adda');
   check('no sign-in wall: Play now is one tap from first open', !!(await page.$('#play-now')) && !(await page.$('input[type=password], input[type=tel]')));
-  await page.waitForSelector('.hero3d.live canvas', { timeout: 15000 });
-  check('3D hero renders on the home screen', true);
-  check('3D graphics are on by default', (await page.evaluate(() => window.__ludo.gfxMode())) === '3d');
-  await page.waitForTimeout(400); await shot(page, '01-home');
   await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'off', 'professor', 'off'], tokens: 2 }));
   await page.waitForSelector('.dice.ready');
-  check('game board is a WebGL canvas', !!(await page.$('.board-wrap canvas.gl')));
   const lock = await page.textContent('.chip-lock');
   check('dice commitment shown before first roll', /🔒 [0-9a-f]{6}/.test(lock), lock);
   await shot(page, '02-game-start');
@@ -106,7 +125,7 @@ console.log('2. Autosave and resume');
 console.log('3. Roz ki Chaal');
 {
   const ctx = await browser.newContext(mobile);
-  await ctx.addInitScript(fastSettings);
+  await ctx.addInitScript(fast3d);
   const page = await newPage(ctx);
   await page.goto(base);
   await page.click('.c-daily');
@@ -221,7 +240,7 @@ console.log('7. Visual pass with full animation');
   await page.waitForSelector('#play-now');
   await page.evaluate(() => window.__ludo.startLocal({ kinds: ['human', 'bunty', 'off', 'professor'], tokens: 4 }));
   let n = 0;
-  await drive(page, async () => { n++; if (n === 60) await shot(page, '11-mid-game'); return n > 400; }, { maxMs: 60000 });
+  await drive(page, async () => { n++; if (n === 60) await shot(page, '11-mid-game'); return n > 400; }, { maxMs: 25000 });
   check('animated match ran without errors', true);
   await ctx.close();
 }
@@ -230,7 +249,7 @@ console.log('7. Visual pass with full animation');
 console.log('8. 3D dice lands on the rolled face');
 {
   const ctx = await browser.newContext(mobile);
-  await ctx.addInitScript(fastSettings);
+  await ctx.addInitScript(fast3d);
   const page = await newPage(ctx);
   await page.goto(base);
   await page.waitForSelector('#play-now');
@@ -299,7 +318,7 @@ self.addEventListener('fetch',e=>{const req=e.request;if(req.method!=='GET'||new
   await page.waitForSelector('#play-now');
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
   check('phone is running the old build under the old cache-first worker', (await page.evaluate(() => self.LUDO_BUILD)) === 'A-old');
-  // "deploy": new worker (the real one in site/) and a new build id
+  // "deploy": new worker (the real one in the repo root) and a new build id
   phase = 'new'; build = 'B-new';
   await page.reload().catch(() => {}); // the app may also reload itself when the new worker takes over
   // the old worker may serve one stale load; the new worker installs, takes over, and the app reloads itself or the next load is fresh
@@ -322,6 +341,19 @@ self.addEventListener('fetch',e=>{const req=e.request;if(req.method!=='GET'||new
   await page.waitForSelector('#play-now');
   check('the page is marked translate=no (no browser auto-translate of Hinglish)', (await page.getAttribute('html', 'translate')) === 'no');
   await ctx.close(); srv2.close();
+}
+
+// ---------------------------------------------------------------- 11. what Pages publishes is the game, whichever deploy mode is on
+console.log('11. Repository is publishable as-is');
+{
+  const { existsSync, readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  check('repo root has index.html that is the game (so a branch-based Pages build serves it, not the README)', /<title>Ludo Adda<\/title>/.test(html) && /js\/app\.js/.test(html));
+  check('.nojekyll present (no Jekyll processing of the game files)', existsSync(new URL('../.nojekyll', import.meta.url)));
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const listed = [...sw.matchAll(/'([^']+\.(?:js|css|html|png|svg|webmanifest))'/g)].map(m => m[1]);
+  const missing = listed.filter(f => !existsSync(new URL('../' + f, import.meta.url)));
+  check('every file the service worker precaches exists (a missing one would break install)', missing.length === 0, missing.join(','));
 }
 
 await browser.close(); srv.close();

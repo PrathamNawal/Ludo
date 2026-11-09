@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generatePuzzle, solve, dayNumber } from '../site/js/puzzle.js';
-import { encodeRoom, decodeRoom, roomState, nextRoll, verifyRoom } from '../site/js/family.js';
-import { newSeed, commitOf, rollAt } from '../site/js/dice.js';
-import { step, legalMoves, current } from '../site/js/rules.js';
+import { generatePuzzle, solve, dayNumber } from '../js/puzzle.js';
+import { encodeRoom, decodeRoom, roomState, nextRoll, verifyRoom } from '../js/family.js';
+import { newSeed, commitOf, rollAt } from '../js/dice.js';
+import { step, legalMoves, current } from '../js/rules.js';
 
 test('puzzles 1..600 are generated, solvable, and have 1-3 solutions', () => {
   const t0 = Date.now();
@@ -52,7 +52,7 @@ test('decodeRoom rejects garbage', () => {
 });
 
 test('i18n: every key has all three languages and commentary is complete', async () => {
-  const { _tables } = await import('../site/js/i18n.js');
+  const { _tables } = await import('../js/i18n.js');
   for (const [k, v] of Object.entries(_tables.S)) for (const l of ['en', 'hi', 'hg']) assert.ok(v[l] && v[l].length, `${k}.${l}`);
   for (const [k, v] of Object.entries(_tables.C)) for (const l of ['en', 'hi', 'hg']) assert.ok(Array.isArray(v[l]) && v[l].length >= 2, `${k}.${l}`);
   // placeholders must match across languages so no translation drops a variable

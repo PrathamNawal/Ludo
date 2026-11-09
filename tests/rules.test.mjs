@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TRACK, HOME_COL, SAFE, START_IDX, createState, step, legalMoves, current, replay, absCell, HOME, cellXY } from '../site/js/rules.js';
-import { chooseMove, PERSONA_KEYS } from '../site/js/bots.js';
-import { mulberry32 } from '../site/js/puzzle.js';
+import { TRACK, HOME_COL, SAFE, START_IDX, createState, step, legalMoves, current, replay, absCell, HOME, cellXY } from '../js/rules.js';
+import { chooseMove, PERSONA_KEYS } from '../js/bots.js';
+import { mulberry32 } from '../js/puzzle.js';
 
 test('track is a closed loop of 52 unique cells with exactly 4 diagonal corner steps', () => {
   assert.equal(TRACK.length, 52);

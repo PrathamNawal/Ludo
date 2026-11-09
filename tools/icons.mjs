@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
-const dir = fileURLToPath(new URL('../site/icons/', import.meta.url));
+const dir = fileURLToPath(new URL('../icons/', import.meta.url));
 const jobs = [['icon.svg', 'icon-192.png', 192], ['icon.svg', 'icon-512.png', 512], ['icon-maskable.svg', 'icon-maskable-512.png', 512]];
 const browser = await chromium.launch();
 for (const [src, out, size] of jobs) {

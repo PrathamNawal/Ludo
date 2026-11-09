@@ -1,5 +1,5 @@
 // Offline-first service worker: precache the whole app, serve cache first, refresh in background.
-const VERSION = 'ludo-adda-v2';
+const VERSION = 'ludo-adda-v3';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/rules.js', 'js/dice.js', 'js/bots.js', 'js/puzzle.js', 'js/family.js',

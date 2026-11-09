@@ -285,7 +285,7 @@ function finishLocal(match, state, names, avatars) {
   const verifyOut = h('div', { class: 'verify-out' });
   const body = h('div', { class: 'result' },
     h('h2', { class: 'win-h', text: humanWon ? t('res.youwin') : t('res.win', { name: names[winner] }) }),
-    h('ol', { class: 'standings' }, ...order.map(c => h('li', { style: `--c:${PALETTE[c]}` }, h('span', { class: 'dot' }), h('b', { text: names[c] }), h('small', { text: t('res.homeTokens', { n: homeCount(state, c) }) })))),
+    h('ol', { class: 'standings' }, ...order.map((c, i) => h('li', { style: `--c:${PALETTE[c]}`, 'data-rank': ['🥇', '🥈', '🥉', '4'][i] || String(i + 1) }, h('span', { class: 'dot' }), h('b', { text: names[c] }), h('small', { text: t('res.homeTokens', { n: homeCount(state, c) }) })))),
     h('h3', { text: t('res.stats') }), h('p', { class: 'muted small', text: t('res.statsNote') }),
     statsPanel(match.cfg, match.log, names),
     h('button', { class: 'btn', id: 'verify-btn', onclick: async e => {
@@ -416,7 +416,8 @@ function openFamilyNew() {
     let count = 2, tokens = 4;
     const inputs = defaults.map((d, i) => h('input', { class: 'inp', maxlength: 14, value: d, 'aria-label': `${t('n.player', { n: i + 1 })}` }));
     const list = h('div', { class: 'rows' });
-    const draw = () => list.replaceChildren(...inputs.slice(0, count).map((inp, i) => h('label', { class: 'name-row', style: `--c:${PALETTE[[0, 1, 2, 3][i]]}` }, h('span', { class: 'dot' }), inp)));
+    const seatColors = () => (count === 2 ? [0, 2] : [0, 1, 2, 3]); // must match the colours assigned on create
+    const draw = () => list.replaceChildren(...inputs.slice(0, count).map((inp, i) => h('label', { class: 'name-row', style: `--c:${PALETTE[seatColors()[i]]}` }, h('span', { class: 'dot' }), inp)));
     const cnt = h('div', { class: 'seg' }, ...[2, 3, 4].map(n => h('button', { class: n === count ? 'on' : '', onclick: e => { count = n; [...e.target.parentNode.children].forEach(b => b.classList.toggle('on', b === e.target)); draw(); } }, String(n))));
     const tok = h('div', { class: 'seg' }, ...[4, 2].map(n => h('button', { class: n === tokens ? 'on' : '', onclick: e => { tokens = n; [...e.target.parentNode.children].forEach(b => b.classList.toggle('on', b === e.target)); } }, String(n))));
     draw();
@@ -531,7 +532,7 @@ async function familyResult(room, me, state, names) {
   const order = standings(state);
   const body = h('div', { class: 'result' },
     h('h2', { class: 'win-h', text: t('res.win', { name: names[state.winner] }) }),
-    h('ol', { class: 'standings' }, ...order.map(c => h('li', { style: `--c:${PALETTE[c]}` }, h('span', { class: 'dot' }), h('b', { text: names[c] }), h('small', { text: t('res.homeTokens', { n: homeCount(state, c) }) })))),
+    h('ol', { class: 'standings' }, ...order.map((c, i) => h('li', { style: `--c:${PALETTE[c]}`, 'data-rank': ['🥇', '🥈', '🥉', '4'][i] || String(i + 1) }, h('span', { class: 'dot' }), h('b', { text: names[c] }), h('small', { text: t('res.homeTokens', { n: homeCount(state, c) }) })))),
     h('p', { class: 'muted small', text: t('fam.verifyNote') }),
     statsPanel({ colors: room.seats.map(s => s.c), tokens: room.tokens }, room.log, names),
     h('button', { class: 'btn', onclick: async e => { room.reveals[me.seat] = me.seed; syncHash(room); await refresh(); navigator.clipboard?.writeText(roomUrl(room)).then(() => toast(t('fam.copied'))); e.target.disabled = true; } }, '🔓 ' + t('fam.reveal')), out,

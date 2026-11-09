@@ -9,6 +9,7 @@ import { db, settings, update, getSeat, setSeat } from './store.js';
 import { sfx, unlock, buzz } from './audio.js';
 import { $, h, sleep, toast } from './ui.js';
 import { GameView, setBoard3D } from './view.js';
+import './version.js';
 import { Board, PALETTE } from './board.js';
 
 const app = $('#app');
@@ -56,7 +57,9 @@ function show(name, build, { push = true } = {}) {
   window.scrollTo(0, 0);
   if (push && name !== 'home') history.pushState({ s: name }, '', location.href);
 }
+let updatePending = false; // a newer service worker took over; reload when it is safe (not mid-match)
 function goHome({ fromPop = false } = {}) {
+  if (updatePending) { location.reload(); return; }
   if (!fromPop && screenName !== 'home' && history.state && history.state.s) { history.back(); return; }
   show('home', homeScreen, { push: false });
 }
@@ -146,6 +149,7 @@ function openSettings() {
     onoff('reduceMotion', t('settings.motion'), v => { document.documentElement.dataset.motion = v ? 'reduce' : ''; }),
     installEvt ? h('button', { class: 'btn', onclick: async () => { installEvt.prompt(); installEvt = null; closeModal(); } }, '📲 ' + t('settings.install')) : null,
     h('p', { class: 'foot small', text: t('settings.about') }),
+    h('p', { class: 'foot small', text: `Ludo Adda v${self.LUDO_BUILD || '?'}` }),
     h('button', { class: 'btn primary', onclick: closeModal }, t('ok')));
   openModal(body);
 }
@@ -570,8 +574,16 @@ async function boot() {
 boot();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').then(() => {
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; } // first install, nothing to update
+    updatePending = true;
+    if (screenName === 'home' && $('#modal').hidden) location.reload(); else toast(t('app.updated'));
+  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
     if (!navigator.serviceWorker.controller) setTimeout(() => toast(t('offline.ready')), 1200);
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
   }).catch(() => {}));
 }
 window.__ludo = { show, goHome, startLocal, openDaily, gfxMode, board: () => view && view.board };

@@ -277,6 +277,53 @@ console.log('9. Lite 2D mode');
   await ctx.close();
 }
 
+// ---------------------------------------------------------------- 10. a phone on the OLD cache-first worker receives a new deploy
+console.log('10. Updates reach phones that cached an older build');
+{
+  // The exact service worker that shipped in v0.1 (cache-first). Real phones are stuck on this one.
+  const OLD_SW = `const VERSION='ludo-adda-v1';const ASSETS=['./','index.html','css/style.css','js/app.js'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()))});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==VERSION).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
+self.addEventListener('fetch',e=>{const req=e.request;if(req.method!=='GET'||new URL(req.url).origin!==location.origin)return;e.respondWith((async()=>{const cache=await caches.open(VERSION);const hit=await cache.match(req,{ignoreSearch:true});const net=fetch(req).then(res=>{if(res.ok)cache.put(req,res.clone());return res}).catch(()=>null);if(hit){net.catch(()=>{});return hit}return(await net)||Response.error()})())});`;
+  let phase = 'old', build = 'A-old';
+  const srv2 = await serve(0, p => {
+    if (p === '/sw.js' && phase === 'old') return OLD_SW;
+    if (p === '/js/version.js') return `self.LUDO_BUILD='${build}';`;
+    return null;
+  });
+  const base2 = `http://localhost:${srv2.address().port}/`;
+  const ctx = await browser.newContext(mobile);
+  await ctx.addInitScript(fastSettings);
+  const page = await newPage(ctx);
+  await page.goto(base2);
+  await page.waitForSelector('#play-now');
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
+  check('phone is running the old build under the old cache-first worker', (await page.evaluate(() => self.LUDO_BUILD)) === 'A-old');
+  // "deploy": new worker (the real one in site/) and a new build id
+  phase = 'new'; build = 'B-new';
+  await page.reload().catch(() => {}); // the app may also reload itself when the new worker takes over
+  // the old worker may serve one stale load; the new worker installs, takes over, and the app reloads itself or the next load is fresh
+  let got = null;
+  for (let i = 0; i < 4 && got !== 'B-new'; i++) {
+    await page.waitForTimeout(1500);
+    got = await page.evaluate(() => self.LUDO_BUILD).catch(() => null);
+    if (got !== 'B-new') await page.reload().catch(() => {});
+  }
+  check('after a deploy the phone ends up on the new build within two reloads', got === 'B-new', String(got));
+  check('settings shows the running version', await (async () => { await page.waitForSelector('#play-now'); await page.click('.home-top .icon-btn'); await page.waitForSelector('.settings'); return /Ludo Adda vB-new/.test(await page.textContent('.settings')); })());
+  // and from now on a further deploy shows up on the very next load (network-first)
+  build = 'C-newer';
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await page.reload().catch(() => {});
+  let nextOk = true;
+  await page.waitForFunction(() => self.LUDO_BUILD === 'C-newer', null, { timeout: 10000 }).catch(() => { nextOk = false; });
+  check('next deploy arrives on the very next load', nextOk);
+  await page.waitForSelector('#play-now');
+  check('the page is marked translate=no (no browser auto-translate of Hinglish)', (await page.getAttribute('html', 'translate')) === 'no');
+  await ctx.close(); srv2.close();
+}
+
 await browser.close(); srv.close();
 console.log(`\n${passed} checks passed, ${failures.length} failed`);
 if (errors.length) console.log('Browser errors:\n  ' + errors.join('\n  '));

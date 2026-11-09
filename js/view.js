@@ -5,7 +5,7 @@
 import { Board, PALETTE, DARK } from './board.js';
 import { cellXY, SAFE, START_IDX, homeCount } from './rules.js';
 import { h, sleep, reduceMotion } from './ui.js';
-import { say, t } from './i18n.js';
+import { say, sayParts, t } from './i18n.js';
 import { sfx, buzz, speak } from './audio.js';
 
 // The 3D board is loaded lazily by app.js (so Lite mode / old phones never download it).
@@ -15,7 +15,8 @@ export function setBoard3D(cls) { Board3DClass = cls; }
 const PIPS = { 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] };
 
 export class GameView {
-  constructor({ colors, tokens, names, avatars, counts, gfx = 'lite', dice = true }) {
+  constructor({ colors, tokens, names, avatars, counts, gfx = 'lite', dice = true, speechNames = {} }) {
+    this.speechNames = speechNames; // Devanagari names for speaking; missing = fall back to the shown text
     this.colors = colors; this.tokens = tokens; this.names = names; this.avatars = avatars || {};
     this.counts = counts || null;
     this.waiters = [];
@@ -73,7 +74,9 @@ export class GameView {
 
   setBubble(text) { this.bubble.textContent = text; }
   /** Commentary: show it and say it. */
-  commentate(text) { this.bubble.textContent = text; if (text) speak(text); }
+  commentate(text, speech = text, mood = 'calm') { this.bubble.textContent = text; if (text && mood) speak(speech, mood); }
+  /** Say one commentary event (shown + spoken). mood=null shows it but stays silent. */
+  say(event, vars, svars, mood) { const p = sayParts(event, vars, svars); this.commentate(p.text, p.speech, mood); }
   setFace(n) {
     this.dice.dataset.face = n;
     const on = new Set(PIPS[n]);
@@ -167,14 +170,17 @@ export class GameView {
   async playEvent(ev, state) {
     if (this.dead) return;
     const name = this.names[ev.color];
+    const sn = this.speechNames[ev.color];
     if (ev.forfeit) {
-      this.commentate(say('forfeit', { name })); sfx.bad(); buzz([60, 40, 60]);
+      this.say('forfeit', { name }, { name: sn }, 'sympathy'); sfx.bad(); buzz([60, 40, 60]);
       await sleep(900); this.place(state, 0); return;
     }
-    if (ev.pass) { this.commentate(say('pass', { name })); await sleep(reduceMotion() ? 200 : 650); return; }
+    if (ev.pass) { this.say('pass', { name }, { name: sn }, 'sympathy'); await sleep(reduceMotion() ? 200 : 650); return; }
 
     const left = ev.from === -1;
-    this.commentate(ev.roll === 6 && !left ? say('six', { name }) : left ? say('leave', { name }) : say('roll', { name, n: ev.roll }));
+    if (ev.roll === 6 && !left) this.say('six', { name }, { name: sn }, 'excited');
+    else if (left) this.say('leave', { name }, { name: sn }, 'calm');
+    else this.say('roll', { name, n: ev.roll }, { name: sn, n: ev.roll }, null); // routine rolls: shown, not narrated
     if (left) { sfx.leave(); }
     // the stepping hops
     this.board.front(ev.color, ev.token);
@@ -192,19 +198,20 @@ export class GameView {
       this.board.flash(x, y, '#ff3d00');
       this.board.shake(1.2);
       const victim = this.names[ev.captured[0].color];
-      this.commentate(say('capture', { name, victim }));
+      const sv = this.speechNames[ev.captured[0].color];
+      this.say('capture', { name, victim }, { name: sn, victim: sv }, 'excited');
       for (const v of ev.captured) {
         const chip = this.chipEls[v.color].el;
         chip.classList.add('hit'); setTimeout(() => chip.classList.remove('hit'), 600);
       }
       await Promise.all(ev.captured.map(v => this.board.slinkHome(v.color, v.idx)));
     } else if (ev.to <= 50 && SAFE.has((START_IDX[ev.color] + ev.to) % 52) && !left && Math.random() < 0.35) {
-      this.commentate(say('safe', { name }));
+      this.say('safe', { name }, { name: sn }, 'calm');
     }
     if (ev.home) {
       sfx.home(); buzz([20, 40, 20, 40, 60]);
       this.board.bloom(x, y, ev.color, ev.win);
-      this.commentate(say(ev.win ? 'win' : 'home', { name }));
+      this.say(ev.win ? 'win' : 'home', { name }, { name: sn }, 'excited');
     }
     if (ev.win) { sfx.win(); this.confetti(); }
     this.place(state, 140);

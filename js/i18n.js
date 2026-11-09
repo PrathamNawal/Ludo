@@ -4,7 +4,7 @@ export const LANGS = { hg: 'Hinglish', en: 'English', hi: 'हिन्दी' }
 let lang = 'hg';
 export const getLang = () => lang;
 // Hinglish is Latin script, so it is tagged 'en' (and the page is marked translate="no" in index.html)
-export function setLang(l) { if (LANGS[l]) { lang = l; document.documentElement.lang = l === 'hi' ? 'hi' : 'en'; } }
+export function setLang(l) { if (LANGS[l]) { lang = l; if (typeof document !== 'undefined') document.documentElement.lang = l === 'hi' ? 'hi' : 'en'; } }
 
 const S = {
   'app.name': { en: 'Ludo Adda', hi: 'लूडो अड्डा', hg: 'Ludo Adda' },
@@ -66,6 +66,9 @@ const S = {
   'settings.lang': { en: 'Language', hi: 'भाषा', hg: 'Bhasha' },
   'settings.sound': { en: 'Sound', hi: 'आवाज़', hg: 'Awaaz' },
   'settings.voice': { en: 'Voice commentary', hi: 'आवाज़ में कमेंट्री', hg: 'Awaaz mein commentary' },
+  'voice.hindi': { en: 'Hindi voice', hi: 'हिन्दी आवाज़', hg: 'Hindi awaaz' },
+  'voice.english': { en: 'English voice', hi: 'अंग्रेज़ी आवाज़', hg: 'English awaaz' },
+  'voice.auto': { en: 'Auto (best)', hi: 'अपने आप (सबसे अच्छी)', hg: 'Auto (sabse achhi)' },
   'voice.sample': { en: 'Welcome to the Adda! Let the game begin.', hi: 'अड्डे में स्वागत है! खेल शुरू करते हैं।', hg: 'Adda mein swagat hai! Khel shuru karte hain.' },
   'voice.none': { en: 'No voice found on this phone. Install text-to-speech in your phone settings.', hi: 'इस फोन में आवाज़ नहीं मिली। फोन सेटिंग्स में टेक्स्ट-टू-स्पीच इंस्टॉल करो।', hg: 'Is phone mein awaaz nahi mili. Phone settings mein text-to-speech install karo.' },
   'settings.haptics': { en: 'Vibration', hi: 'वाइब्रेशन', hg: 'Vibration' },
@@ -179,10 +182,30 @@ const C = {
 };
 
 const fmt = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => (v && v[k] !== undefined ? v[k] : ''));
+/** Translate into a specific language (used to get Devanagari names for speech). */
+export const tIn = (l, key, vars) => fmt((S[key] && (S[key][l] || S[key].en)) || key, vars);
 export const t = (key, vars) => fmt((S[key] && (S[key][lang] || S[key].en)) || key, vars);
 export function say(event, vars) {
   const set = C[event];
   const arr = (set && (set[lang] || set.en)) || [''];
   return fmt(arr[Math.floor(Math.random() * arr.length)], vars);
+}
+/**
+ * One commentary line as {text, speech}. `text` is what is shown. `speech` is what is spoken: for
+ * Hinglish and Hindi it is the Devanagari variant of the SAME line (same index), so a Hindi voice reads
+ * it properly instead of an English voice mangling Romanised Hindi. `sv` holds the Devanagari values
+ * for the placeholders; if any is missing (e.g. a family member's custom name) we fall back to `text`.
+ */
+export function sayParts(event, vars, sv) {
+  const set = C[event];
+  const arr = (set && (set[lang] || set.en)) || [''];
+  const i = Math.floor(Math.random() * arr.length);
+  const text = fmt(arr[i], vars);
+  let speech = text;
+  if (lang !== 'en' && set && set.hi && set.hi[i]) {
+    const need = (set.hi[i].match(/\{(\w+)\}/g) || []).map(x => x.slice(1, -1));
+    if (need.every(k => sv && sv[k] !== undefined && sv[k] !== null)) speech = fmt(set.hi[i], sv);
+  }
+  return { text, speech };
 }
 export const _tables = { S, C };
